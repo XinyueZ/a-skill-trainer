@@ -8,6 +8,7 @@ from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.session_creator import create_session_id
+from pathlib import Path
 
 load_dotenv()
 
@@ -68,15 +69,19 @@ class InferenceAgent(BaseModel):
 
 
 if __name__ == "__main__":
-    task = Task(id="12345", name="development-task")
-
+    task_id = "1234455"
+    task_name = "development-task"
+    task = Task(id=task_id, name=task_name)
+    query = "What is the capital of China?"
+    system_prompt = "Answer user question and finish task."
+    output_dir = "../output"
     session_id = create_session_id()
-    root_path = f"../output/{session_id}"
+    root_path = Path(os.path.join(output_dir, session_id))
 
     agent = InferenceAgent()
     agent(
-        query="What is the capital of China?",
+        query=query,
         task=task.id,
         root_path=root_path,
-        system_prompt="Answer user question and finish task.",
+        system_prompt=system_prompt,
     )

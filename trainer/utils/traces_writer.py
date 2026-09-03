@@ -4,6 +4,7 @@ from pathlib import Path
 from langchain_core.load import dumps
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+import os
 
 
 class TracesPath(BaseModel):
@@ -45,8 +46,9 @@ class TracesWriter(BaseModel):
         return cleaed_kwargs
 
     def append(self, task_id, list_messages, root_path) -> TracesPath:
-        file_path = root_path + f"{task_id}/traces.json"
-        Path(root_path + f"{task_id}").mkdir(parents=True, exist_ok=True)
+        dir_path = os.path.join(str(root_path), task_id)
+        file_path = os.path.join(dir_path, "traces.json")
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
         with open(file_path, "a", encoding="utf-8") as f:
             json_str = dumps(list_messages, pretty=True)
             invers_json = json.loads(json_str)
