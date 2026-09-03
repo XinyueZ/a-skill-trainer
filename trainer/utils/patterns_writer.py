@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
 
 
-class PatternWriter(BaseModel):
+class PatternsWriter(BaseModel):
     model_config = ConfigDict(extra="forbid")
