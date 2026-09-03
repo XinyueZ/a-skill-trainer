@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
 
 
-class LogReader(BaseModel):
+class LogsReader(BaseModel):
     model_config = ConfigDict(extra="forbid")
