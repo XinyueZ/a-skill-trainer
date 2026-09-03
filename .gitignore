@@ -26,5 +26,6 @@ __pycache__/
 
 papers/
 output/
+workspace/
 
 .env
