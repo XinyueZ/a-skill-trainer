@@ -3,27 +3,13 @@ import os
 from deepagents import create_deep_agent
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from langchain.tools import tool
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.session_creator import create_session_id
-from langchain.tools import tool
 
 load_dotenv()
-
-
-@tool
-def finish(some_message: str) -> str:
-    """
-    Finish, when the user has done the assigened task, receive some message from caller and return finish message.
-
-    Args:
-        some_message (str): A message
-    Returns:
-        str: A finish message
-    """
-
-    return "this is finish message"
 
 
 class Task(BaseModel):
@@ -52,24 +38,25 @@ class InferenceAgent(BaseModel):
             },
         )
 
-        self._agent = create_deep_agent(model=self._model, tools=[finish])
         self._raw_layer = RawLayer()
 
     def __call__(self, **kwargs):
+        system_prompt = (
+            [kwargs.get("system_prompt")] if kwargs.get("system_prompt") else list()
+        )
         query = kwargs["query"]
         task = kwargs["task"]
         root_path = kwargs["root_path"]
+        tools = kwargs.get("tools", list())
 
+        self._agent = create_deep_agent(model=self._model, tools=tools)
         logger.info(
             f"Start inference for task {task}, query: {query}, root_path: {root_path}"
         )
         response = self._agent.invoke(
             {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Answer user question and call tool `finish` with some message when done",
-                    },
+                "messages": system_prompt
+                + [
                     {"role": "user", "content": query},
                 ]
             }
@@ -87,4 +74,9 @@ if __name__ == "__main__":
     root_path = f"../output/{session_id}"
 
     agent = InferenceAgent()
-    agent(query="What is the capital of China?", task=task.id, root_path=root_path)
+    agent(
+        query="What is the capital of China?",
+        task=task.id,
+        root_path=root_path,
+        system_prompt="Answer user question and finish task.",
+    )

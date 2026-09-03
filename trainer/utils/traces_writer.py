@@ -26,7 +26,12 @@ class TracesWriter(BaseModel):
             "type": kwargs["type"],
         }
         if kwargs["content"]:
-            cleaed_kwargs["content"] = kwargs["content"]
+            cleaned_content = (
+                list(map(lambda x: self._remove_key(x, "extras"), kwargs["content"]))
+                if isinstance(kwargs["content"], list)
+                else self._remove_key(kwargs["content"], "extras")
+            )
+            cleaed_kwargs["content"] = cleaned_content
 
         if "tool_calls" in kwargs and kwargs["tool_calls"]:
             cleaed_kwargs["tool_calls"] = list(
