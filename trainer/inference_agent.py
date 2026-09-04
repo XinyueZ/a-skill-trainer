@@ -42,18 +42,19 @@ class InferenceAgent(BaseModel):
         self._raw_layer = RawLayer()
 
     def __call__(self, **kwargs):
+        session_id = kwargs["session_id"]
         system_prompt = (
             [kwargs.get("system_prompt")] if kwargs.get("system_prompt") else list()
         )
         query = kwargs["query"]
         task = kwargs["task"]
-        root_path = kwargs["root_path"]
+        output_dir = kwargs["output_dir"]
         skills = kwargs.get("skills")
         tools = kwargs.get("tools")
 
         self._agent = create_deep_agent(model=self._model, skills=skills, tools=tools)
         logger.info(
-            f"Start inference for task {task}, query: {query}, root_path: {root_path}"
+            f"Start inference for task {task}, query: {query}, output_dir: {output_dir}"
         )
         response = self._agent.invoke(
             {
@@ -65,7 +66,9 @@ class InferenceAgent(BaseModel):
         )
 
         list_messages = response["messages"]
-        traces_path = self._raw_layer.append_traces(task, list_messages, root_path)
+        traces_path = self._raw_layer.append_traces(
+            session_id, task.id, list_messages, output_dir
+        )
         logger.success(f"Inference done, addd traces to raw layer at {traces_path}")
 
 
@@ -95,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--system_prompt",
         type=str,
-        required=True,
+        required=False,
         help="System prompt",
     )
     parser.add_argument(
@@ -114,21 +117,22 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?"  --output_dir ../output
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "Weather in Hamburg Germany" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
 
     task = Task(id=args.task_id, name=args.task_name)
     session_id = create_session_id()
-    root_path = Path(os.path.join(args.output_dir, session_id))
 
     skill_dir_str = args.skill_dir
     skill_dir_list = skill_dir_str.split() if skill_dir_str else None
 
     agent = InferenceAgent()
     agent(
+        session_id=session_id,
         query=args.query,
-        task=task.id,
-        root_path=root_path,
+        task=task,
+        output_dir=args.output_dir,
         system_prompt=args.system_prompt,
         skills=skill_dir_list,
     )

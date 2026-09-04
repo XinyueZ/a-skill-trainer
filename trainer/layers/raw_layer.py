@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict
 from utils.traces_reader import TracesReader
 from utils.traces_writer import TracesPath, TracesWriter
+from pathlib import Path
+import os
 
 
 class RawLayer(BaseModel):
@@ -12,5 +14,8 @@ class RawLayer(BaseModel):
     def __init__(self):
         self._traces_writer = TracesWriter()
 
-    def append_traces(self, task_id, list_messages, root_path) -> TracesPath:
+    def append_traces(
+        self, session_id, task_id, list_messages, output_dir
+    ) -> TracesPath:
+        root_path = Path(os.path.join(output_dir, session_id))
         return self._traces_writer.append(task_id, list_messages, root_path)
