@@ -14,7 +14,7 @@ from utils.run_agent import run_agent
 load_dotenv()
 
 
-_PROMPT = """
+_SYSTEM_PROMPT = """
 You are a Wiki Maintainer Agent for an LLM skill evolution system.
 Your job is to maintain a structured knowledge base (wiki) directly on the local filesystem that documents patterns observed during agent execution -- both successes and failures. You must perform DEEP ANALYSIS of execution logs to identify root causes, not just surface-level symptoms.
 
@@ -24,6 +24,7 @@ Your job is to maintain a structured knowledge base (wiki) directly on the local
 **CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
 **CRITICAL**: THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
 **CRITICAL**: AVOID `.git/`
+**CRITICAL**: AVOID TOUCHING `skill-impact.md`
 
 The wiki is organized on disk as:
 - `wiki/index.md` -- Concise catalog of known patterns (one line per pattern)
@@ -142,16 +143,22 @@ class WikiMaintainer(BaseModel):
 
         traces_dict = self._raw_layer.read_traces(traces_dir)
         traces_str = str(traces_dict)
-        prompt = _PROMPT.format(workspace_dir=workspace_dir, traces=str(traces_str))
+        system_prompt = _SYSTEM_PROMPT.format(
+            workspace_dir=workspace_dir, traces=str(traces_str)
+        )
         backend = FilesystemBackend(root_dir=workspace_dir, virtual_mode=False)
-        self._agent = create_deep_agent(model=self._model, backend=backend)
+        self._agent = create_deep_agent(
+            model=self._model,
+            backend=backend,
+            system_prompt=system_prompt,
+        )
         logger.info(
             f"Run WikiMaintainer, at {workspace_dir}, for traces:\n\n{traces_str[:100]}...\n\n"
         )
 
-        messages = [{"role": "user", "content": prompt}]
+        messages = [{"role": "user", "content": "maintain the wiki please"}]
         await run_agent(self._agent, messages, stream_mode)
-        logger.success(f"WikiMaintainer done")
+        logger.success("WikiMaintainer done")
 
 
 async def main(args):

@@ -45,10 +45,9 @@ class InferenceAgent(BaseModel):
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
         system_prompt = (
-            [{"role": "system", "content": kwargs.get("system_prompt")}]
-            if kwargs.get("system_prompt")
-            else list()
+            kwargs.get("system_prompt") if kwargs.get("system_prompt") else str
         )
+
         query = kwargs["query"]
         task = kwargs["task"]
         output_dir = kwargs["output_dir"]
@@ -56,12 +55,17 @@ class InferenceAgent(BaseModel):
         tools = kwargs.get("tools", [])
         stream_mode = kwargs.get("stream_mode") == True
 
-        self._agent = create_deep_agent(model=self._model, skills=skills, tools=tools)
+        self._agent = create_deep_agent(
+            model=self._model,
+            skills=skills,
+            tools=tools,
+            system_prompt=system_prompt,
+        )
         logger.info(
             f"Start inferencing for task {task}, query: {query}, output_dir: {output_dir}"
         )
 
-        messages = system_prompt + [{"role": "user", "content": query}]
+        messages = [{"role": "user", "content": query}]
         response = await run_agent(self._agent, messages, stream_mode)
 
         list_messages = response["messages"]
