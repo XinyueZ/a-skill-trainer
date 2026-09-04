@@ -22,7 +22,8 @@ Your job is to maintain a structured knowledge base (wiki) directly on the local
 
 **CRITICAL**: Your workspace directory is located at `{workspace_dir}`. You must always perform all operations within the `wiki/` subdirectory of this path.
 **CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
-**CRITICAL**: The README.md files are purely explanatory artifacts of no value. **Disregard them entirely**.
+**CRITICAL**: THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
+**CRITICAL**: AVOID `.git/`
 
 The wiki is organized on disk as:
 - `wiki/index.md` -- Concise catalog of known patterns (one line per pattern)
@@ -184,7 +185,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # python wiki_maintainer.py --traces_dir ../output/86be66f4-5ede-4d95-94bc-dc5a1891fb49/1234455 --workspace_dir ../workspace --stream_mode
+    # python wiki_maintainer.py --traces_dir ../output/be2ce694-c844-4ed7-9e58-eb09bef21e67/1234455 --workspace_dir ../workspace --stream_mode
     import asyncio
 
     asyncio.run(main(args))
