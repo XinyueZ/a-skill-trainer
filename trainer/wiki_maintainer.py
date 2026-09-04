@@ -109,21 +109,6 @@ The description must be specific enough that an agent can judge relevance withou
 from langchain.tools import tool
 
 
-@tool
-def _finish(msg: str):
-    """
-    Tool that is used at the end of the task, receive a message for signal
-
-    Arg:
-        str: msg that the tool receives
-
-    Return:
-        str: just a signal for hand sheck.
-    """
-    logger.debug(f"task finished: {msg}")
-    return "WikiMaintainer agent has completed the task."
-
-
 class WikiMaintainer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -154,12 +139,11 @@ class WikiMaintainer(BaseModel):
         assert os.path.exists(workspace_dir)
         stream_mode = kwargs.get("stream_mode") == True
 
-        tools = [_finish]
         traces_dict = self._raw_layer.read_traces(traces_dir)
         traces_str = str(traces_dict)
         prompt = _PROMPT.format(workspace_dir=workspace_dir, traces=str(traces_str))
         backend = FilesystemBackend(root_dir=workspace_dir, virtual_mode=False)
-        self._agent = create_deep_agent(model=self._model, backend=backend, tools=tools)
+        self._agent = create_deep_agent(model=self._model, backend=backend)
         logger.info(
             f"Run WikiMaintainer, at {workspace_dir}, for traces:\n\n{traces_str[:100]}...\n\n"
         )

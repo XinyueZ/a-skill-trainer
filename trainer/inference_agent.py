@@ -14,21 +14,6 @@ from utils.session_creator import create_session_id
 load_dotenv()
 
 
-@tool
-def _finish(msg: str):
-    """
-    Tool that is used at the end of the task, receive a message for signal
-
-    Arg:
-        str: msg that the tool receives
-
-    Return:
-        str: just a signal for hand sheck.
-    """
-    logger.debug(f"task finished: {msg}")
-    return "Inference agent has completed the task."
-
-
 class Task(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -68,7 +53,7 @@ class InferenceAgent(BaseModel):
         task = kwargs["task"]
         output_dir = kwargs["output_dir"]
         skills = kwargs.get("skills")
-        tools = kwargs.get("tools", [_finish])
+        tools = kwargs.get("tools", [])
         stream_mode = kwargs.get("stream_mode") == True
 
         self._agent = create_deep_agent(model=self._model, skills=skills, tools=tools)
