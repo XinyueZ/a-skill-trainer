@@ -22,9 +22,9 @@ Your job is to maintain a structured knowledge base (wiki) directly on the local
 
 **CRITICAL**: Your workspace directory is located at `{workspace_dir}`. You must always perform all operations within the `wiki/` subdirectory of this path.
 **CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
-**CRITICAL**: THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
-**CRITICAL**: AVOID `.git/`
-**CRITICAL**: AVOID TOUCHING `skill-impact.md`
+**CRITICAL**: AVOID TOUCHING (READ OR WRITE) README.md FILES. THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
+**CRITICAL**: AVOID TOUCHING (READ OR WRITE) `.git/`
+**CRITICAL**: AVOID TOUCHING (READ OR WRITE) `skill-impact.md`
 
 The wiki is organized on disk as:
 - `wiki/index.md` -- Concise catalog of known patterns (one line per pattern)
