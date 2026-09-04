@@ -146,6 +146,7 @@ class WikiMaintainer(BaseModel):
         system_prompt = _SYSTEM_PROMPT.format(
             workspace_dir=workspace_dir, traces=str(traces_str)
         )
+        logger.debug(f"system prompt:\n\n{system_prompt[:150]}...\n\n")
         backend = FilesystemBackend(root_dir=workspace_dir, virtual_mode=False)
         self._agent = create_deep_agent(
             model=self._model,
@@ -192,7 +193,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # python wiki_maintainer.py --traces_dir ../output/be2ce694-c844-4ed7-9e58-eb09bef21e67/1234455 --workspace_dir ../workspace --stream_mode
+    # python wiki_maintainer.py --traces_dir ../output/38a619f7-7614-4473-bc53-a5a3f46c2b81/1234455 --workspace_dir ../workspace --stream_mode
     import asyncio
 
     asyncio.run(main(args))

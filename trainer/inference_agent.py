@@ -44,9 +44,8 @@ class InferenceAgent(BaseModel):
 
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
-        system_prompt = (
-            kwargs.get("system_prompt") if kwargs.get("system_prompt") else str
-        )
+        system_prompt = kwargs.get("system_prompt")
+        logger.debug(f"system prompt:\n\n{system_prompt[:150]}...\n\n")
 
         query = kwargs["query"]
         task = kwargs["task"]
@@ -148,7 +147,7 @@ if __name__ == "__main__":
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?"  --output_dir ../output --stream_mode
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output --stream_mode
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task. Always use finish tool for complete signal" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Weather in Hamburg Germany at moment" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Current weather in Hamburg Germany please" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
     import asyncio
 
     asyncio.run(main(args))
