@@ -1,4 +1,6 @@
+rich
 loguru==0.7.3
+
 pydantic==2.13.5
 python-dotenv==1.2.1
 

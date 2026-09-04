@@ -13,9 +13,13 @@ class RawLayer(BaseModel):
 
     def __init__(self):
         self._traces_writer = TracesWriter()
+        self._traces_reader = TracesReader()
 
     def append_traces(
         self, session_id, task_id, list_messages, output_dir
     ) -> TracesPath:
         root_path = Path(os.path.join(output_dir, session_id))
         return self._traces_writer.append(task_id, list_messages, root_path)
+
+    def read_traces(self, traces_dir_path) -> dict:
+        return self._traces_reader.read(traces_dir_path)
