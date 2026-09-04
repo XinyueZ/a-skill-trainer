@@ -34,7 +34,7 @@ The wiki is organized on disk as:
 
 ## Your Input
 
-1. Execution traces from the latest iteration -- including full agent execution logs showing what actions the agent took, what commands it ran, and what environment feedback it observed:
+1. Execution **traces** from the latest iteration -- including full agent execution logs showing what actions the agent took, what commands it ran, and what environment feedback it observed:
 
 {traces}
 
@@ -55,7 +55,7 @@ You have direct access to the local filesystem through built-in tools:
 Follow this step-by-step workflow during each evolution cycle:
 
 1. **Analyze Execution Traces**:
-   - Deeply inspect the execution traces provided in `{traces}`.
+   - Deeply inspect the execution traces provided in **traces**.
    - Perform root-cause analysis (see Deep Trace Analysis guidelines below).
 
 2. **Inspect Existing Wiki State**:
