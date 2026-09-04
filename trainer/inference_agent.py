@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from deepagents import create_deep_agent
 from dotenv import load_dotenv
@@ -8,7 +9,6 @@ from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.session_creator import create_session_id
-from pathlib import Path
 
 load_dotenv()
 
@@ -48,9 +48,10 @@ class InferenceAgent(BaseModel):
         query = kwargs["query"]
         task = kwargs["task"]
         root_path = kwargs["root_path"]
-        tools = kwargs.get("tools", list())
+        skills = kwargs.get("skills")
+        tools = kwargs.get("tools")
 
-        self._agent = create_deep_agent(model=self._model, tools=tools)
+        self._agent = create_deep_agent(model=self._model, skills=skills, tools=tools)
         logger.info(
             f"Start inference for task {task}, query: {query}, root_path: {root_path}"
         )
@@ -69,19 +70,65 @@ class InferenceAgent(BaseModel):
 
 
 if __name__ == "__main__":
-    task_id = "1234455"
-    task_name = "development-task"
-    task = Task(id=task_id, name=task_name)
-    query = "What is the capital of China?"
-    system_prompt = "Answer user question and finish task."
-    output_dir = "../output"
+    # read cli args
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(allow_abbrev=False)
+    parser.add_argument(
+        "--task_id",
+        type=str,
+        required=True,
+        help="Task id",
+    )
+    parser.add_argument(
+        "--task_name",
+        type=str,
+        required=True,
+        help="Task name",
+    )
+    parser.add_argument(
+        "--query",
+        type=str,
+        required=True,
+        help="Query that the user questions.",
+    )
+    parser.add_argument(
+        "--system_prompt",
+        type=str,
+        required=True,
+        help="System prompt",
+    )
+    parser.add_argument(
+        "--skill_dir",
+        type=str,
+        required=False,
+        help="Skill directory",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        required=True,
+        default="../output",
+        help="Output directory",
+    )
+
+    args = parser.parse_args()
+
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Weather in Hamburg Germany" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
+
+    task = Task(id=args.task_id, name=args.task_name)
     session_id = create_session_id()
-    root_path = Path(os.path.join(output_dir, session_id))
+    root_path = Path(os.path.join(args.output_dir, session_id))
+
+    skill_dir_str = args.skill_dir
+    skill_dir_list = skill_dir_str.split() if skill_dir_str else None
 
     agent = InferenceAgent()
     agent(
-        query=query,
+        query=args.query,
         task=task.id,
         root_path=root_path,
-        system_prompt=system_prompt,
+        system_prompt=args.system_prompt,
+        skills=skill_dir_list,
     )
