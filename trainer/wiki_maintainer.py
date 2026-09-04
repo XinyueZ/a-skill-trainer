@@ -1,15 +1,19 @@
 import os
-from langchain.chat_models import init_chat_model
+from argparse import ArgumentParser
+
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
 from layers.raw_layer import RawLayer
 from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from dotenv import load_dotenv
+from utils.run_agent import run_agent
 
 load_dotenv()
-_INVOKE_CONIFG = {"recursion_limit": 10000}
+
+
 _PROMPT = """
 You are a Wiki Maintainer Agent for an LLM skill evolution system.
 Your job is to maintain a structured knowledge base (wiki) directly on the local filesystem that documents patterns observed during agent execution -- both successes and failures. You must perform DEEP ANALYSIS of execution logs to identify root causes, not just surface-level symptoms.
@@ -18,6 +22,7 @@ Your job is to maintain a structured knowledge base (wiki) directly on the local
 
 **CRITICAL**: Your workspace directory is located at `{workspace_dir}`. You must always perform all operations within the `wiki/` subdirectory of this path.
 **CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
+**CRITICAL**: The README.md files are purely explanatory artifacts of no value. **Disregard them entirely**.
 
 The wiki is organized on disk as:
 - `wiki/index.md` -- Concise catalog of known patterns (one line per pattern)
@@ -101,9 +106,25 @@ Each index entry MUST follow this format:
 
 The description must be specific enough that an agent can judge relevance without reading the full page. Include the problem, root cause, AND solution.
 """
+from langchain.tools import tool
 
 
-class WikiMaintaincer(BaseModel):
+@tool
+def _finish(msg: str):
+    """
+    Tool that is used at the end of the task, receive a message for signal
+
+    Arg:
+        str: msg that the tool receives
+
+    Return:
+        str: just a signal for hand sheck.
+    """
+    logger.debug(f"task finished: {msg}")
+    return "WikiMaintainer agent has completed the task."
+
+
+class WikiMaintainer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     _raw_layer: RawLayer
@@ -125,35 +146,39 @@ class WikiMaintaincer(BaseModel):
         )
         self._raw_layer = RawLayer()
 
-    def __call__(self, **kwargs):
+    async def __call__(self, **kwargs):
         traces_dir = kwargs["traces_dir"]
         assert os.path.exists(traces_dir)
 
         workspace_dir = kwargs["workspace_dir"]
         assert os.path.exists(workspace_dir)
+        stream_mode = kwargs.get("stream_mode") == True
 
+        tools = [_finish]
         traces_dict = self._raw_layer.read_traces(traces_dir)
         traces_str = str(traces_dict)
         prompt = _PROMPT.format(workspace_dir=workspace_dir, traces=str(traces_str))
         backend = FilesystemBackend(root_dir=workspace_dir, virtual_mode=False)
-        self._agent = create_deep_agent(model=self._model, backend=backend)
+        self._agent = create_deep_agent(model=self._model, backend=backend, tools=tools)
         logger.info(
             f"Run WikiMaintainer, at {workspace_dir}, for traces:\n\n{traces_str[:100]}...\n\n"
         )
-        response = self._agent.invoke(
-            {
-                "messages": [
-                    {"role": "user", "content": prompt},
-                ]
-            },
-            config=_INVOKE_CONIFG,
-        )
+
+        messages = [{"role": "user", "content": prompt}]
+        await run_agent(self._agent, messages, stream_mode)
         logger.success(f"WikiMaintainer done")
 
 
+async def main(args):
+    wiki_maintainer = WikiMaintainer()
+    await wiki_maintainer(
+        traces_dir=args.traces_dir,
+        workspace_dir=args.workspace_dir,
+        stream_mode=args.stream_mode,
+    )
+
+
 if __name__ == "__main__":
-    # read cli args
-    from argparse import ArgumentParser
 
     parser = ArgumentParser(allow_abbrev=False)
     parser.add_argument(
@@ -168,12 +193,14 @@ if __name__ == "__main__":
         required=True,
         help="Wiki directory (current state)",
     )
-
+    parser.add_argument(
+        "--stream_mode",
+        action="store_true",
+        help="Set for stream mode",
+    )
     args = parser.parse_args()
 
-    # python wiki_maintainer.py --traces_dir ../output/746218fa-ce09-4e7e-bab5-f42b58646eef/1234455 --workspace_dir ../workspace
-    # python wiki_maintainer.py --traces_dir ../output/dd1b9e3a-116e-4f05-8579-ffc27c09cfdb/1234455 --workspace_dir ../workspace
-    # python wiki_maintainer.py --traces_dir ../output/e7e2f1ed-5274-4d13-bc39-0e967b0d3650/1234455 --workspace_dir ../workspace
+    # python wiki_maintainer.py --traces_dir ../output/86be66f4-5ede-4d95-94bc-dc5a1891fb49/1234455 --workspace_dir ../workspace --stream_mode
+    import asyncio
 
-    wiki_maintainer = WikiMaintaincer()
-    wiki_maintainer(traces_dir=args.traces_dir, workspace_dir=args.workspace_dir)
+    asyncio.run(main(args))

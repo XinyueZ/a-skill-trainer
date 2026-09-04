@@ -8,9 +8,25 @@ from langchain.tools import tool
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from utils.run_agent import run_agent
 from utils.session_creator import create_session_id
 
 load_dotenv()
+
+
+@tool
+def _finish(msg: str):
+    """
+    Tool that is used at the end of the task, receive a message for signal
+
+    Arg:
+        str: msg that the tool receives
+
+    Return:
+        str: just a signal for hand sheck.
+    """
+    logger.debug(f"task finished: {msg}")
+    return "Inference agent has completed the task."
 
 
 class Task(BaseModel):
@@ -41,35 +57,53 @@ class InferenceAgent(BaseModel):
 
         self._raw_layer = RawLayer()
 
-    def __call__(self, **kwargs):
+    async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
         system_prompt = (
-            [kwargs.get("system_prompt")] if kwargs.get("system_prompt") else list()
+            [{"role": "system", "content": kwargs.get("system_prompt")}]
+            if kwargs.get("system_prompt")
+            else list()
         )
         query = kwargs["query"]
         task = kwargs["task"]
         output_dir = kwargs["output_dir"]
         skills = kwargs.get("skills")
-        tools = kwargs.get("tools")
+        tools = kwargs.get("tools", [_finish])
+        stream_mode = kwargs.get("stream_mode") == True
 
         self._agent = create_deep_agent(model=self._model, skills=skills, tools=tools)
         logger.info(
-            f"Start inference for task {task}, query: {query}, output_dir: {output_dir}"
+            f"Start inferencing for task {task}, query: {query}, output_dir: {output_dir}"
         )
-        response = self._agent.invoke(
-            {
-                "messages": system_prompt
-                + [
-                    {"role": "user", "content": query},
-                ]
-            }
-        )
+
+        messages = system_prompt + [{"role": "user", "content": query}]
+        response = await run_agent(self._agent, messages, stream_mode)
 
         list_messages = response["messages"]
         traces_path = self._raw_layer.append_traces(
             session_id, task.id, list_messages, output_dir
         )
         logger.success(f"Inference done, addd traces to raw layer at {traces_path}")
+
+
+async def main(args):
+
+    task = Task(id=args.task_id, name=args.task_name)
+    session_id = create_session_id()
+
+    skill_dir_str = args.skill_dir
+    skill_dir_list = skill_dir_str.split() if skill_dir_str else None
+
+    inference_agent = InferenceAgent()
+    await inference_agent(
+        session_id=session_id,
+        query=args.query,
+        task=task,
+        output_dir=args.output_dir,
+        system_prompt=args.system_prompt,
+        skills=skill_dir_list,
+        stream_mode=args.stream_mode,
+    )
 
 
 if __name__ == "__main__":
@@ -114,25 +148,18 @@ if __name__ == "__main__":
         default="../output",
         help="Output directory",
     )
+    parser.add_argument(
+        "--stream_mode",
+        action="store_true",
+        help="Set for stream mode",
+    )
 
     args = parser.parse_args()
 
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?"  --output_dir ../output
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Weather in Hamburg Germany" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?"  --output_dir ../output --stream_mode
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output --stream_mode
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task. Always use finish tool for complete signal" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Weather in Hamburg Germany at moment" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
+    import asyncio
 
-    task = Task(id=args.task_id, name=args.task_name)
-    session_id = create_session_id()
-
-    skill_dir_str = args.skill_dir
-    skill_dir_list = skill_dir_str.split() if skill_dir_str else None
-
-    agent = InferenceAgent()
-    agent(
-        session_id=session_id,
-        query=args.query,
-        task=task,
-        output_dir=args.output_dir,
-        system_prompt=args.system_prompt,
-        skills=skill_dir_list,
-    )
+    asyncio.run(main(args))
