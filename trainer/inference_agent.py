@@ -51,7 +51,7 @@ class InferenceAgent(BaseModel):
         task = kwargs["task"]
         output_dir = kwargs["output_dir"]
         skills = kwargs.get("skills")
-        tools = kwargs.get("tools", [])
+        tools = kwargs.get("tools")
         stream_mode = kwargs.get("stream_mode") == True
 
         self._agent = create_deep_agent(
