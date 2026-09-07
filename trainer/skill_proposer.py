@@ -62,8 +62,7 @@ You have direct access to the local filesystem through built-in tools:
 ## Workflow
 
 1. Start by reading `wiki/index.md` to understand what patterns exist
-2. Read `wiki/skill-impact.md` to see what was tried before (includes full content of
-rejected proposals -- DO NOT repeat rejected approaches)
+2. Read `wiki/skill-impact.md` to see what was tried before (includes full content of rejected proposals -- DO NOT repeat rejected approaches)
 3. Read specific pattern pages that seem relevant to the current failures
 4. Read **task execution traces** for failed tasks via `traces` to understand root causes
 5. Decide: create (new skill) or patch (edit existing skill), or no_action
@@ -73,15 +72,14 @@ rejected proposals -- DO NOT repeat rejected approaches)
 
 For creating a new skill:
 - "action": "create"
-- "name": skill directory name (snake_case)
-- "skill_md": full SKILL.md content with YAML frontmatter + When to Apply + When NOT to
-Apply + Instructions
+- "name": skill **directory name** (**CRITICAL**: kebab-case, ie: user-profile-data, run-android-app)
+- "skill_md": full SKILL.md content with YAML frontmatter + When to Apply + When NOT to Apply + Instructions
 - "purpose_md": full PURPOSE.md content with Origin + Patterns Addressed + Evolution
 History
 
 For patching an existing skill:
 - "action": "patch"
-- "name": existing skill directory name
+- "name": existing skill **directory name**  (**CRITICAL**: kebab-case, id: user-profile-data, run-android-app....)
 - "skill_edits": list of patch operations for SKILL.md (empty if no changes needed):
   - {{"op": "append", "content": "text to add at end"}}
   - {{"op": "replace", "target": "exact text to find", "content": "replacement"}}
@@ -92,17 +90,14 @@ For patching an existing skill:
   - {{"op": "insert_after", "target": "exact text to find", "content": "text to insert after"}}
 
 **Rules**:
-1. Each "replace" target should be a short, specific section. If you need to change most of either file, use "action": "create" instead.
-If no action is needed, call finish with: {{"action": "no_action"}}
+1. Each "replace" target should be a short, specific section. If you need to change most of either file, use "action": "create" instead. If no action is needed, call finish with: {{"action": "no_action"}}
 
 ## Rules
-1. Read the wiki FIRST -- don’t propose something that was already tried and rejected.
-skill-impact.md contains full content of rejected proposals.
+1. Read the wiki FIRST -- don’t propose something that was already tried and rejected. skill-impact.md contains full content of rejected proposals.
 2. Focus on action patterns and concrete strategies.
 3. Keep skills concise and actionable.
 4. You MUST read the task execution traces before proposing a skill change. Target your exploration based on the trace summary.
-5. Prefer patching existing skills over creating new ones when the existing skill is
-partially correct.
+5. Prefer patching existing skills over creating new ones when the existing skill is partially correct.
 """
 
 import re
@@ -145,8 +140,7 @@ class CreateSkillProposal(BaseModel):
     @classmethod
     def sanitize_skill_name(cls, v: str) -> str:
         cleaned = v.replace(".md", "").split("/")[-1]
-        cleaned = re.sub(r"[^a-zA-Z0-9_]+", "_", cleaned).lower()
-        cleaned = cleaned.strip("_")
+        cleaned = re.sub(r"[^a-zA-Z0-9_\-]+", "-", cleaned).lower().strip("-")
         if not cleaned:
             raise ValueError(f"Invalid skill name format: {v}")
         return cleaned
