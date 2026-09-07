@@ -101,7 +101,7 @@ For patching an existing skill:
 """
 
 import re
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -179,9 +179,8 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
         Returns:
         - A JSON object representing the final proposal.
         """
-        from rich.pretty import pprint as pp
-
-        pp(proposal_dict)
+        # from rich.pretty import pprint as pp
+        # pp(proposal_dict)
 
         if not isinstance(proposal_dict, dict):
             logger.error(f"Input to finish() is not a dict! Got: {type(proposal_dict)}")
@@ -199,14 +198,12 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
         elif action_raw in ("no_action", "noaction", "none", "no-action", "nothing"):
             payload["action"] = "no_action"
         else:
-
             logger.warning(
                 f"Unidentified action: '{action_raw}'. Overwriting with 'no_action'."
             )
             payload["action"] = "no_action"
 
         action = payload["action"]
-
         if action == "create":
             if "purpose_md" not in payload or not str(payload["purpose_md"]).strip():
                 logger.warning(
@@ -221,13 +218,10 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                 payload["skill_md"] = (
                     "# SKILL INSTRUCTIONS\n\nNo instructions provided."
                 )
-
         elif action == "patch":
             if "edit" in payload and "edits" not in payload:
                 payload["edits"] = payload["edit"]
-
             if "edits" not in payload or not isinstance(payload["edits"], list):
-
                 if "op" in payload and "content" in payload:
                     logger.warning(
                         "Single edit found flat on root. Packaging into edits list."
@@ -241,7 +235,6 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                         }
                     ]
                 else:
-
                     logger.error(
                         "Patch action specified but no valid edits found. Falling back to 'no_action'."
                     )
@@ -254,7 +247,6 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                 if not isinstance(edit, dict):
                     continue
                 edit_copy = dict(edit)
-
                 op_raw = str(edit_copy.get("op", "")).strip().lower()
                 if op_raw in ("append", "add", "push"):
                     edit_copy["op"] = "append"
@@ -287,7 +279,7 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                 )
         except Exception as e:
             logger.critical(
-                f"🚨 [Harness Critical Error] Proposal failed to pass strict schema validation even after sanitization! "
+                f"Proposal failed to pass strict schema validation even after sanitization! "
                 f"Falling back to NO_ACTION immediately. Error details: {e}"
             )
             p = NoActionProposal(
