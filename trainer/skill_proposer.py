@@ -1,33 +1,75 @@
+import os
+from argparse import ArgumentParser
+from pathlib import Path
+
+from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain.messages import ToolMessage
+from layers.raw_layer import RawLayer
+from layers.skills_layer import SkillsLayer
+from layers.wiki_layer import WikiLayer
+from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from utils.awrap_tool_call import AwrapToolCall
+from utils.run_agent import run_agent
+from deepagents.middleware import FilesystemMiddleware
 
-from trainer.layers.raw_layer import RawLayer
-from trainer.layers.skills_layer import SkillsLayer
-from trainer.layers.wiki_layer import WikiLayer
-
+load_dotenv()
 _SYSTEM_PROMPT = """
-You are a Skill Proposer Agent for an LLM agent that solves {task_desc}.
-Your job is to explore the wiki knowledge base and execution traces, diagnose root
-causes of failures, and propose a skill change (create or patch).
+You are a Skill Proposer Agent for an LLM agent that solves task:
+
+{task_desc}
+
+Your job is to explore the wiki knowledge base and **task execution traces**, diagnose root causes of failures, and propose a skill change (create or patch).
+
+**CRITICAL**: YOUR WORKSPACE DIRECTORY IS LOCATED AT `{workspace_dir}`. 
+**CRITICAL**: EVERYTHING AT `{workspace_dir}` IS **READ-ONLY**.
+**CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
+**CRITICAL**: AVOID TOUCHING (READ OR WRITE) README.md FILES. THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
+**CRITICAL**: AVOID TOUCHING (READ OR WRITE) `.git/`, `.gitignore, `.DS_Store`
+The workspace is organized into distinct layers to separate raw experience, compiled knowledge, and executable code. You must understand the role of each directory to operate effectively:
+
+### 1. `wiki/` (Persistent Knowledge Layer)
+This layer compiles raw **task execution traces** into structured, compounding knowledge. 
+*Crucial Rule:* This directory is **PERMANENT and NEVER rolls back**. Even if a skill proposal is rejected, the diagnostic patterns and impact logs generated during that iteration persist here to guide future attempts.
+
+*   `wiki/index.md`: A global, content-oriented catalog indexing all known behavior patterns. Each entry links to its pattern page with a one-sentence summary of the problem, root cause, and fix.
+*   `wiki/log.md` (or `logs.md`): A chronological, append-only history of the wiki's evolution. It summarizes the findings, errors, and maintainer actions for each iteration.
+*   `wiki/skill-impact.md`: An objective audit trail maintained programmatically by the outer-loop harness. It records every past proposal, its target skill, its complete Git Diff, validation scores, and the final decision (Accepted or Rejected). **You MUST read this first and NEVER propose a change that was previously rejected.**
+*   `wiki/patterns/`: A directory containing individual Markdown files (`*.md`) for specific failure modes or success strategies. Each file details root-cause analysis, exact trace evidence, and concrete workarounds.
+
+### 2. `skills/` (Active Skills Layer)
+This layer contains the active set of evolved procedural skills that are directly injected into the Inference Agent's system prompt.
+*Crucial Rule:* This directory is **REVERSIBLE**. If your proposal degrades validation performance, the entire modifications under this directory will be **simultaneously rolled back** to the previous stable state.
+
+*   Each skill exists as a standalone directory: `skills/<skill_name>/`.
+*   `skills/<skill_name>/SKILL.md`: The executable instruction file. It contains YAML frontmatter metadata (name, description), "When to Apply" rules, and actionable guidelines.
+*   `skills/<skill_name>/PURPOSE.md`: The design intent file. It documents the skill's origin, the list of motivating Wiki patterns it addresses, and its evolution history. **The status of SKILL.md and PURPOSE.md is strictly synchronized; they are created, updated, or rolled back together.**
 
 ## Tools Available
+ 
+You have direct access to the local filesystem through built-in tools:
+- `ls(path)`: List files in a directory with metadata (size, modified time).
+- `read_file(path, offset, limit)`: Read file contents with line numbers, supports offset/limit for large files.
+- `glob(pattern)`: Find files matching patterns (e.g., `patterns/*.md`).
+- `grep(pattern, path)`: Search file contents with regex or keyword patterns.
 
-You have two tools:
-1. ‘read_file(path)‘ -- Read a wiki file or execution log. Paths are relative to the
-workspace root.
-2. ‘finish(proposal)‘ -- Submit your final skill proposal as a JSON object.
+** Special tool after finalization of proposal**:
+- `finish(proposal)` -- Submit your final skill proposal as a JSON object.
 
 ## Workflow
 
-1. Start by reading ‘wiki/index.md‘ to understand what patterns exist
-2. Read ‘wiki/skill-impact.md‘ to see what was tried before (includes full content of
+1. Start by reading `wiki/index.md` to understand what patterns exist
+2. Read `wiki/skill-impact.md` to see what was tried before (includes full content of
 rejected proposals -- DO NOT repeat rejected approaches)
 3. Read specific pattern pages that seem relevant to the current failures
-4. Read execution traces for failed tasks via ‘traces/<task_id>‘ to understand root
-causes
+4. Read **task execution traces** for failed tasks via `traces` to understand root causes
 5. Decide: create (new skill) or patch (edit existing skill), or no_action
-6. If proposing a change, call ‘finish‘ with the full proposal
+6. If proposing a change, call `finish` with the full proposal
 
-## finish() Proposal Format
+## `finish(proposal)` Proposal Format
 
 For creating a new skill:
 - "action": "create"
@@ -41,33 +83,210 @@ For patching an existing skill:
 - "action": "patch"
 - "name": existing skill directory name
 - "skill_edits": list of patch operations for SKILL.md (empty if no changes needed):
-  - {"op": "append", "content": "text to add at end"}
-  - {"op": "replace", "target": "exact text to find", "content": "replacement"}
-  - {"op": "insert_after", "target": "exact text to find", "content": "text to insert after"}
+  - {{"op": "append", "content": "text to add at end"}}
+  - {{"op": "replace", "target": "exact text to find", "content": "replacement"}}
+  - {{"op": "insert_after", "target": "exact text to find", "content": "text to insert after"}}
 - "purpose_edits": list of patch operations for PURPOSE.md (empty if no changes needed):
-  - {"op": "append", "content": "text to add at end"}
-  - {"op": "replace", "target": "exact text to find", "content": "replacement"}
-  - {"op": "insert_after", "target": "exact text to find", "content": "text to insert after"}
+  - {{"op": "append", "content": "text to add at end"}}
+  - {{"op": "replace", "target": "exact text to find", "content": "replacement"}}
+  - {{"op": "insert_after", "target": "exact text to find", "content": "text to insert after"}}
 
 **Rules**:
 1. Each "replace" target should be a short, specific section. If you need to change most of either file, use "action": "create" instead.
-If no action is needed, call finish with: {"action": "no_action"}
+If no action is needed, call finish with: {{"action": "no_action"}}
 
 ## Rules
 1. Read the wiki FIRST -- don’t propose something that was already tried and rejected.
 skill-impact.md contains full content of rejected proposals.
 2. Focus on action patterns and concrete strategies.
 3. Keep skills concise and actionable.
-4. You MUST read at least 4 execution traces before proposing a skill change. Target
-your exploration based on the trace summary.
+4. You MUST read the task execution traces before proposing a skill change. Target your exploration based on the trace summary.
 5. Prefer patching existing skills over creating new ones when the existing skill is
 partially correct.
 """
+from langchain.tools import tool
+
+
+@tool
+def finish(proposal_dict: dict):
+    """
+    Submit your final skill proposal as a JSON object. Called after finalization of proposal.
+
+    Args:
+    - proposal: The proposal to submit.
+    """
+    proposal_str = str(proposal_dict)
+    from rich.pretty import pprint as pp
+
+    pp(proposal_dict)
+
+    return f"A proposal has been submitted: \n\n{proposal_str}\n\n"
 
 
 class SkillProposer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    _raw_layer: RawLayer
     _skills_layer: SkillsLayer
     _wiki_layer: WikiLayer
+    _raw_layer: RawLayer
+
+    def __init__(self):
+        self._model = init_chat_model(
+            model=os.environ["SKILL_PROPOSER_MODEL"],
+            model_provider="google_genai",
+            temperature=float(os.environ["TEMPERATURE"]),
+            vertexai=os.environ["GOOGLE_GENAI_USE_VERTEXAI"].lower() == "true",
+            enterprise=os.environ["GOOGLE_GENAI_USE_ENTERPRISE"].lower() == "true",
+            project=os.environ["GOOGLE_CLOUD_PROJECT"],
+            location=os.environ["SKILL_PROPOSER_MODEL_LOCATION"],
+            thinking_config={
+                "thinking_level": os.environ["THINKING_LEVEL"],
+                "include_thoughts": os.environ["INCLUDE_THOUGHTS"].lower() == "true",
+            },
+        )
+        self._skills_layer = SkillsLayer()
+        self._wiki_layer = WikiLayer()
+        self._raw_layer = RawLayer()
+
+    def _block_forbidden_files(self, request, handler):
+        tool_name = request.tool_call.get("name", "")
+        if tool_name in ("write_file", "edit_file", "delete"):
+            return ToolMessage(
+                content="Write, Edit, Delete actions are forbidden.",
+                name=tool_name,
+                tool_call_id=request.tool_call.get("id", "avoid"),
+            )
+
+        args = request.tool_call.get("args", {})
+        raw_path = args.get("file_path") or args.get("path") or ""
+        pattern = args.get("pattern") or ""
+        file_name = os.path.basename(raw_path.rstrip("/\\"))
+        path_parts = Path(raw_path).parts
+
+        is_git_access = (
+            ".git" in path_parts
+            or raw_path.strip("/\\") == ".git"
+            or ".git" in pattern.split("/")
+            or pattern.startswith(".git")
+        )
+        if is_git_access:
+            logger.warning(
+                f"Block forbidden action on .git directory: tool={tool_name}, path='{raw_path}', pattern='{pattern}'"
+            )
+            return ToolMessage(
+                content="Access to the '.git' directory and its contents is strictly forbidden.",
+                name=tool_name,
+                tool_call_id=request.tool_call.get("id", "avoid"),
+            )
+
+        _full_blocked_files = [
+            ".gitignore",
+            ".gitattributes",
+            ".gitmodules",
+            ".DS_Store",
+            "readme.md",
+        ]
+        if file_name.lower() in _full_blocked_files:
+            logger.warning(
+                f"Block forbidden file {tool_name} of {_full_blocked_files} at WikiMaintainer"
+            )
+            return ToolMessage(
+                content="The {file_name} is protected and must NOT be read, written, or modified.",
+                name=tool_name,
+                tool_call_id=request.tool_call.get("id", "avoid"),
+            )
+
+        return handler(request)
+
+    async def __call__(self, **kwargs):
+        traces_dir = kwargs["traces_dir"]
+        assert os.path.exists(traces_dir)
+        traces_abs_path = os.path.abspath(traces_dir)
+
+        workspace_dir = kwargs["workspace_dir"]
+        assert os.path.exists(workspace_dir)
+        workspace_abs_path = os.path.abspath(workspace_dir)
+
+        stream_mode = kwargs.get("stream_mode") == True
+
+        traces_dict = self._raw_layer.read_traces(traces_abs_path)
+        traces_str = str(traces_dict)
+        first_human = next(
+            (item for item in traces_dict if item.get("type") == "human"), None
+        )
+        task_desc = first_human["content"] if first_human else ""
+        system_prompt = _SYSTEM_PROMPT.format(
+            task_desc=task_desc,
+            workspace_dir=workspace_abs_path,
+        )
+        logger.debug(f"system prompt:\n\n{system_prompt[:250]}...\n\n")
+        backend = FilesystemBackend(root_dir=workspace_abs_path, virtual_mode=False)
+        read_only_middleware = FilesystemMiddleware(
+            backend=backend,
+            tools=[
+                "read_file",
+                "ls",
+                "glob",
+                "grep",
+            ],
+        )
+        tools = [finish]
+        self._agent = create_deep_agent(
+            model=self._model,
+            backend=backend,
+            middleware=[
+                AwrapToolCall(self._block_forbidden_files),
+                read_only_middleware,
+            ],
+            system_prompt=system_prompt,
+            tools=tools,
+        )
+        logger.info(
+            f"Run SkillProposer for traces:\n\n{traces_str[:100]}...\n\nTask:\n\n{task_desc[:100]}...\n\n"
+        )
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Finalize a proposal, here is the **task execution traces**:
+{traces_str}""",
+            }
+        ]
+        await run_agent(self._agent, messages, stream_mode)
+        logger.success("SkillProposer done")
+
+
+async def main(args):
+    skill_proposer = SkillProposer()
+    await skill_proposer(
+        traces_dir=args.traces_dir,
+        workspace_dir=args.workspace_dir,
+        stream_mode=args.stream_mode,
+    )
+
+
+if __name__ == "__main__":
+
+    parser = ArgumentParser(allow_abbrev=False)
+    parser.add_argument(
+        "--traces_dir",
+        type=str,
+        required=True,
+        help="Inference traces directory",
+    )
+    parser.add_argument(
+        "--workspace_dir",
+        type=str,
+        required=True,
+        help="A workspace directory where we can find wiki/ and skills/ subdirectories",
+    )
+    parser.add_argument(
+        "--stream_mode",
+        action="store_true",
+        help="Set for stream mode",
+    )
+    args = parser.parse_args()
+
+    # python skill_proposer.py --traces_dir ../output/38a619f7-7614-4473-bc53-a5a3f46c2b81/1234455 --workspace_dir ../workspace --stream_mode
+    import asyncio
+
+    asyncio.run(main(args))
