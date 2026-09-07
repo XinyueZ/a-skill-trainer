@@ -88,8 +88,8 @@ async def main(args):
     task = Task(id=args.task_id, name=args.task_name)
     session_id = create_session_id()
 
-    skill_dir_str = args.skill_dir
-    skill_dir_list = skill_dir_str.split() if skill_dir_str else None
+    skills_dir_str = args.skills_dir
+    skills_dir_list = skills_dir_str.split() if skills_dir_str else None
 
     inference_agent = InferenceAgent()
     await inference_agent(
@@ -98,7 +98,7 @@ async def main(args):
         task=task,
         output_dir=args.output_dir,
         system_prompt=args.system_prompt,
-        skills=skill_dir_list,
+        skills=skills_dir_list,
         stream_mode=args.stream_mode,
     )
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         help="System prompt",
     )
     parser.add_argument(
-        "--skill_dir",
+        "--skills_dir",
         type=str,
         required=False,
         help="Skill directory",
@@ -153,10 +153,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?"  --output_dir ../output --stream_mode
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task." --skill_dir ../workspace/skills --output_dir ../output --stream_mode
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "What is the capital of China?" --system_prompt "Answer user question and finish task. Always use finish tool for complete signal" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
-    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Current weather in Hamburg Germany please" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skill_dir ../workspace/skills --output_dir ../output --stream_mode
+    # python inference_agent.py --task_id 1234455 --task_name development-task --query "Current weather in Hamburg Germany please" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skills_dir ../workspace/skills --output_dir ../output --stream_mode
     import asyncio
 
     asyncio.run(main(args))
