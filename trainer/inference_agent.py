@@ -44,12 +44,21 @@ class InferenceAgent(BaseModel):
 
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
+        assert session_id, "session_id must be specified"
+
         system_prompt = kwargs.get("system_prompt")
         logger.debug(f"system prompt:\n\n{system_prompt[:150]}...\n\n")
 
         query = kwargs["query"]
+        assert query, "query must be specified"
+
         task = kwargs["task"]
+        assert task, "task must be specified"
+
         output_dir = kwargs["output_dir"]
+        assert output_dir, "output_dir must be specified"
+        output_abs_path = Path(output_dir)
+
         skills = kwargs.get("skills")
         tools = kwargs.get("tools")
         stream_mode = kwargs.get("stream_mode") == True
@@ -61,7 +70,7 @@ class InferenceAgent(BaseModel):
             system_prompt=system_prompt,
         )
         logger.info(
-            f"Start inferencing for task {task}, query: {query}, output_dir: {output_dir}"
+            f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}"
         )
 
         messages = [{"role": "user", "content": query}]
@@ -69,7 +78,7 @@ class InferenceAgent(BaseModel):
 
         list_messages = response["messages"]
         traces_path = self._raw_layer.append_traces(
-            session_id, task.id, list_messages, output_dir
+            session_id, task.id, list_messages, output_abs_path
         )
         logger.success(f"Inference done, addd traces to raw layer at {traces_path}")
 
