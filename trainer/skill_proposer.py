@@ -171,11 +171,11 @@ class NoActionProposal(BaseModel):
     )
 
 
-def _create_finish_tool(output_dir: str, session_id: str, task_id: str):
+def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
 
     def finish(
         proposal_dict: dict,
-    ) -> Union[CreateSkillProposal, PatchSkillProposal, NoActionProposal]:
+    ) -> CreateSkillProposal | PatchSkillProposal | NoActionProposal:
         """
         Submit your final skill proposal as a JSON object. Called after finalization of proposal.
 
@@ -278,6 +278,7 @@ def _create_finish_tool(output_dir: str, session_id: str, task_id: str):
 
             payload["edits"] = sanitized_edits
 
+        p: CreateSkillProposal | PatchSkillProposal | NoActionProposal
         try:
             if action == "create":
                 p = CreateSkillProposal(**payload)
@@ -430,7 +431,9 @@ class SkillProposer(BaseModel):
             ],
         )
         created_finish_tool = _create_finish_tool(
-            output_dir=output_abs_path, session_id=session_id, task_id=task_id
+            output_dir=Path(output_abs_path),
+            session_id=session_id,
+            task_id=task_id,
         )
         tools = [created_finish_tool]
 
