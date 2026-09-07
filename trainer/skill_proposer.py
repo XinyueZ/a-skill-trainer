@@ -4,6 +4,7 @@ from pathlib import Path
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
+from deepagents.middleware import FilesystemMiddleware
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import ToolMessage
@@ -14,7 +15,6 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
 from utils.run_agent import run_agent
-from deepagents.middleware import FilesystemMiddleware
 
 load_dotenv()
 _SYSTEM_PROMPT = """
@@ -104,11 +104,77 @@ skill-impact.md contains full content of rejected proposals.
 5. Prefer patching existing skills over creating new ones when the existing skill is
 partially correct.
 """
+
+import re
+from typing import List, Literal, Optional, Union
+
 from langchain.tools import tool
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class PatchOperation(BaseModel):
+    file: Literal["SKILL.md", "PURPOSE.md"] = Field(
+        default="SKILL.md", description="Target file for the patch."
+    )
+    op: Literal["append", "replace", "insert_after"] = Field(
+        ..., description="Type of patch operation."
+    )
+    target: Optional[str] = Field(
+        default=None,
+        description="Required anchor text for 'replace' and 'insert_after'.",
+    )
+    content: str = Field(..., description="The content to apply.")
+
+    @model_validator(mode="after")
+    def validate_and_heal_target(self) -> "PatchOperation":
+        if self.op in ("replace", "insert_after") and not self.target:
+            raise ValueError(f"Operation '{self.op}' requires a 'target' substring.")
+
+        if self.op == "append" and self.target is not None:
+            self.target = None
+        return self
+
+
+class CreateSkillProposal(BaseModel):
+    action: Literal["create"]
+    name: str = Field(..., description="Snake_case directory name.")
+    skill_md: str = Field(..., description="Full content of SKILL.md.")
+    purpose_md: str = Field(..., description="Full content of PURPOSE.md.")
+
+    @field_validator("name")
+    @classmethod
+    def sanitize_skill_name(cls, v: str) -> str:
+        cleaned = v.replace(".md", "").split("/")[-1]
+        cleaned = re.sub(r"[^a-zA-Z0-9_]+", "_", cleaned).lower()
+        cleaned = cleaned.strip("_")
+        if not cleaned:
+            raise ValueError(f"Invalid skill name format: {v}")
+        return cleaned
+
+
+class PatchSkillProposal(BaseModel):
+    action: Literal["patch"]
+    name: str = Field(..., description="Skill directory to patch.")
+    edits: List[PatchOperation] = Field(..., description="List of patch edits.")
+
+    @field_validator("name")
+    @classmethod
+    def sanitize_existing_name(cls, v: str) -> str:
+        return v.replace(".md", "").split("/")[-1].strip().lower()
+
+
+class NoActionProposal(BaseModel):
+    action: Literal["no_action"] = "no_action"
+    reason: str = Field(
+        default="Automatically falls back to no_action due to critical format validation failure.",
+        description="Reason for taking no action.",
+    )
 
 
 @tool
-def finish(proposal_dict: dict):
+def finish(
+    proposal_dict: dict,
+) -> Union[CreateSkillProposal, PatchSkillProposal, NoActionProposal]:
     """
     Submit your final skill proposal as a JSON object. Called after finalization of proposal.
 
@@ -120,7 +186,114 @@ def finish(proposal_dict: dict):
 
     pp(proposal_dict)
 
-    return f"A proposal has been submitted: \n\n{proposal_str}\n\n"
+    if not isinstance(proposal_dict, dict):
+        logger.error(f"Input to finish() is not a dict! Got: {type(proposal_dict)}")
+        return NoActionProposal(
+            reason="Critical failure: input payload is not a JSON object."
+        )
+
+    payload = dict(proposal_dict)
+    action_raw = str(payload.get("action", "")).strip().lower()
+
+    if action_raw in ("create", "created", "new", "make"):
+        payload["action"] = "create"
+    elif action_raw in ("patch", "patched", "update", "updated", "edit", "edits"):
+        payload["action"] = "patch"
+    elif action_raw in ("no_action", "noaction", "none", "no-action", "nothing"):
+        payload["action"] = "no_action"
+    else:
+
+        logger.warning(
+            f"Unidentified action: '{action_raw}'. Overwriting with 'no_action'."
+        )
+        payload["action"] = "no_action"
+
+    action = payload["action"]
+
+    if action == "create":
+        if "purpose_md" not in payload or not str(payload["purpose_md"]).strip():
+            logger.warning(
+                "Create proposal is missing 'purpose_md'. Self-healing with default template."
+            )
+            payload["purpose_md"] = (
+                f"# PURPOSE\n\n- **Origin**: Created for skill '{payload.get('name', 'unnamed')}' "
+                "to address recurring behavior patterns."
+            )
+
+        if "skill_md" not in payload:
+            payload["skill_md"] = "# SKILL INSTRUCTIONS\n\nNo instructions provided."
+
+    elif action == "patch":
+        if "edit" in payload and "edits" not in payload:
+            payload["edits"] = payload["edit"]
+
+        if "edits" not in payload or not isinstance(payload["edits"], list):
+
+            if "op" in payload and "content" in payload:
+                logger.warning(
+                    "Single edit found flat on root. Packaging into edits list."
+                )
+                payload["edits"] = [
+                    {
+                        "file": payload.get("file", "SKILL.md"),
+                        "op": payload["op"],
+                        "target": payload.get("target"),
+                        "content": payload["content"],
+                    }
+                ]
+            else:
+
+                logger.error(
+                    "Patch action specified but no valid edits found. Falling back to 'no_action'."
+                )
+                return NoActionProposal(
+                    reason="Failed to parse edits list from patch proposal."
+                )
+
+        sanitized_edits = []
+        for index, edit in enumerate(payload["edits"]):
+            if not isinstance(edit, dict):
+                continue
+            edit_copy = dict(edit)
+
+            op_raw = str(edit_copy.get("op", "")).strip().lower()
+            if op_raw in ("append", "add", "push"):
+                edit_copy["op"] = "append"
+            elif op_raw in ("replace", "overwrite", "update", "change"):
+                edit_copy["op"] = "replace"
+            elif op_raw in ("insert_after", "insert", "after"):
+                edit_copy["op"] = "insert_after"
+            else:
+                logger.warning(
+                    f"Discarding invalid edit operation at index {index}: '{op_raw}'"
+                )
+                continue
+
+            sanitized_edits.append(edit_copy)
+
+        payload["edits"] = sanitized_edits
+
+    try:
+        if action == "create":
+            return CreateSkillProposal(**payload)
+        elif action == "patch":
+            return PatchSkillProposal(**payload)
+        else:
+            return NoActionProposal(
+                action="no_action",
+                reason=payload.get(
+                    "reason", "Inference ended with explicit no_action."
+                ),
+            )
+    except Exception as e:
+        logger.critical(
+            f"🚨 [Harness Critical Error] Proposal failed to pass strict schema validation even after sanitization! "
+            f"Falling back to NO_ACTION immediately. Error details: {e}"
+        )
+        return NoActionProposal(
+            action="no_action",
+            reason=f"Auto-fallback triggered. Strict validation failed: {str(e)}",
+        )
 
 
 class SkillProposer(BaseModel):
