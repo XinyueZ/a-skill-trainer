@@ -5,10 +5,12 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from langchain.messages import ToolMessage
 from layers.raw_layer import RawLayer
 from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from utils.awrap_tool_call import AwrapToolCall
 from utils.run_agent import run_agent
 
 load_dotenv()
@@ -18,10 +20,10 @@ _SYSTEM_PROMPT = """
 You are a Wiki Maintainer Agent for an LLM skill evolution system.
 Your job is to maintain a structured knowledge base (wiki) directly on the local filesystem that documents patterns observed during agent execution -- both successes and failures. You must perform DEEP ANALYSIS of execution logs to identify root causes, not just surface-level symptoms.
 
-## Wiki Structure and Workspace
+## Wiki Structure
 
-**CRITICAL**: YOUR WORKSPACE DIRECTORY IS LOCATED AT `{wiki_dir}`. YOU MUST ALWAYS PERFORM ALL OPERATIONS WITHIN IT.
-**CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WORKSPACE STUFFS.
+**CRITICAL**: FULL WIKI DIRECTORY IS LOCATED AT `{wiki_dir}`. YOU MUST ALWAYS PERFORM ALL OPERATIONS WITHIN IT.
+**CRITICAL**: DON'T CHANGE ANY README.MD FILES WHICH ARE THE DESCRIPTIONS OF THE WIKI STUFFS.
 **CRITICAL**: AVOID TOUCHING (READ OR WRITE) README.md FILES. THE README.MD FILES ARE PURELY EXPLANATORY ARTIFACTS OF NO VALUE. **DISREGARD THEM ENTIRELY**.
 **CRITICAL**: AVOID TOUCHING (READ OR WRITE) `.git/`
 **CRITICAL**: AVOID TOUCHING (READ OR WRITE) `skill-impact.md`
@@ -108,38 +110,6 @@ Each index entry MUST follow this format:
 
 The description must be specific enough that an agent can judge relevance without reading the full page. Include the problem, root cause, AND solution.
 """
-from langchain.agents.middleware import wrap_tool_call
-from langchain.messages import ToolMessage
-from langchain.tools import tool
-
-
-@wrap_tool_call
-def _block_forbidden_files(request, handler):
-    path = request.tool_call.get("args", {}).get("path", "")
-    file_name = path.split("/")[-1] if "/" in path else path
-
-    if request.tool_call.get("name") == "write_file" and file_name == "skill-impact.md":
-        logger.warning(
-            "Block forbidden file write_file on skill-impace.md at WikiMaintainer"
-        )
-        return ToolMessage(
-            content="The 'skill-impact.md' shouldn't be written",
-            name="write_file",
-            tool_call_id=request.tool_call.get("id", "avoid"),
-        )
-
-    if (
-        request.tool_call.get("name") == "read_file"
-        or request.tool_call.get("name") == "write_file"
-    ) and file_name == "README.md":
-        logger.warning("Block forbidden file read_file on README.md at WikiMaintainer")
-        return ToolMessage(
-            content="The 'README.md' must be touched.",
-            name="read_file",
-            tool_call_id=request.tool_call.get("id", "avoid"),
-        )
-
-    return handler(request)
 
 
 class WikiMaintainer(BaseModel):
@@ -164,6 +134,38 @@ class WikiMaintainer(BaseModel):
         )
         self._raw_layer = RawLayer()
 
+    def _block_forbidden_files(self, request, handler):
+        path = request.tool_call.get("args", {}).get("path", "")
+        file_name = path.split("/")[-1] if "/" in path else path
+
+        if (
+            request.tool_call.get("name") == "write_file"
+            and file_name == "skill-impact.md"
+        ):
+            logger.warning(
+                "Block forbidden file write_file on skill-impace.md at WikiMaintainer"
+            )
+            return ToolMessage(
+                content="The 'skill-impact.md' shouldn't be written",
+                name="write_file",
+                tool_call_id=request.tool_call.get("id", "avoid"),
+            )
+
+        if (
+            request.tool_call.get("name") == "read_file"
+            or request.tool_call.get("name") == "write_file"
+        ) and file_name == "README.md":
+            logger.warning(
+                "Block forbidden file read_file on README.md at WikiMaintainer"
+            )
+            return ToolMessage(
+                content="The 'README.md' must be touched.",
+                name="read_file",
+                tool_call_id=request.tool_call.get("id", "avoid"),
+            )
+
+        return handler(request)
+
     async def __call__(self, **kwargs):
         traces_dir = kwargs["traces_dir"]
         assert os.path.exists(traces_dir)
@@ -180,7 +182,7 @@ class WikiMaintainer(BaseModel):
         self._agent = create_deep_agent(
             model=self._model,
             backend=backend,
-            # middleware=[_block_forbidden_files],
+            middleware=[AwrapToolCall(self._block_forbidden_files)],
             system_prompt=system_prompt,
         )
         logger.info(
