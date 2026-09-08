@@ -326,6 +326,9 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                 action="no_action",
                 reason=f"Auto-fallback triggered. Strict validation failed: {str(e)}",
             )
+            import traceback
+
+            traceback.print_exc()
 
         Path(output_file_path).write_text(p.model_dump_json(indent=2), encoding="utf-8")
         return p
