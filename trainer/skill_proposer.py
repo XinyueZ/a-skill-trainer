@@ -166,6 +166,12 @@ class NoActionProposal(BaseModel):
 
 
 def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
+    output_file_path = os.path.join(
+        str(output_dir),
+        session_id,
+        task_id,
+        "proposal.json",
+    )
 
     def finish(
         proposal_dict: dict,
@@ -179,14 +185,20 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
         Returns:
         - A JSON object representing the final proposal.
         """
+
+        p: CreateSkillProposal | PatchSkillProposal | NoActionProposal
         # from rich.pretty import pprint as pp
         # pp(proposal_dict)
 
         if not isinstance(proposal_dict, dict):
             logger.error(f"Input to finish() is not a dict! Got: {type(proposal_dict)}")
-            return NoActionProposal(
+            p = NoActionProposal(
                 reason="Critical failure: input payload is not a JSON object."
             )
+            Path(output_file_path).write_text(
+                p.model_dump_json(indent=2), encoding="utf-8"
+            )
+            return p
 
         payload = dict(proposal_dict)
         action_raw = str(payload.get("action", "")).strip().lower()
@@ -219,33 +231,49 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                     "# SKILL INSTRUCTIONS\n\nNo instructions provided."
                 )
         elif action == "patch":
-            if "edit" in payload and "edits" not in payload:
-                payload["edits"] = payload["edit"]
-            if "edits" not in payload or not isinstance(payload["edits"], list):
-                if "op" in payload and "content" in payload:
+            raw_edits = []
+            has_separated_edits = "skill_edits" in payload or "purpose_edits" in payload
+            if has_separated_edits:
+                skill_edits = payload.get("skill_edits") or []
+                if isinstance(skill_edits, list):
+                    for e in skill_edits:
+                        if isinstance(e, dict):
+                            item = dict(e)
+                            item.setdefault("file", "SKILL.md")
+                            raw_edits.append(item)
+
+                purpose_edits = payload.get("purpose_edits") or []
+                if isinstance(purpose_edits, list):
+                    for e in purpose_edits:
+                        if isinstance(e, dict):
+                            item = dict(e)
+                            item.setdefault("file", "PURPOSE.md")
+                            raw_edits.append(item)
+
+            else:
+                legacy_edits = payload.get("edits") or payload.get("edit") or []
+                if isinstance(legacy_edits, list):
+                    for e in legacy_edits:
+                        if isinstance(e, dict):
+                            item = dict(e)
+                            item.setdefault("file", "SKILL.md")
+                            raw_edits.append(item)
+
+                elif "op" in payload and "content" in payload:
                     logger.warning(
                         "Single edit found flat on root. Packaging into edits list."
                     )
-                    payload["edits"] = [
+                    raw_edits.append(
                         {
                             "file": payload.get("file", "SKILL.md"),
                             "op": payload["op"],
                             "target": payload.get("target"),
                             "content": payload["content"],
                         }
-                    ]
-                else:
-                    logger.error(
-                        "Patch action specified but no valid edits found. Falling back to 'no_action'."
-                    )
-                    return NoActionProposal(
-                        reason="Failed to parse edits list from patch proposal."
                     )
 
             sanitized_edits = []
-            for index, edit in enumerate(payload["edits"]):
-                if not isinstance(edit, dict):
-                    continue
+            for index, edit in enumerate(raw_edits):
                 edit_copy = dict(edit)
                 op_raw = str(edit_copy.get("op", "")).strip().lower()
                 if op_raw in ("append", "add", "push"):
@@ -259,12 +287,24 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                         f"Discarding invalid edit operation at index {index}: '{op_raw}'"
                     )
                     continue
-
                 sanitized_edits.append(edit_copy)
+
+            if not sanitized_edits:
+                logger.warning(
+                    "Patch action specified but no valid edits found (both skill_edits and purpose_edits are empty). "
+                    "Falling back to 'no_action'."
+                )
+                p = NoActionProposal(
+                    action="no_action",
+                    reason="Patch action contained no valid edits for SKILL.md or PURPOSE.md.",
+                )
+                Path(output_file_path).write_text(
+                    p.model_dump_json(indent=2), encoding="utf-8"
+                )
+                return p
 
             payload["edits"] = sanitized_edits
 
-        p: CreateSkillProposal | PatchSkillProposal | NoActionProposal
         try:
             if action == "create":
                 p = CreateSkillProposal(**payload)
@@ -287,12 +327,6 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
                 reason=f"Auto-fallback triggered. Strict validation failed: {str(e)}",
             )
 
-        output_file_path = os.path.join(
-            str(output_dir),
-            session_id,
-            task_id,
-            "proposal.json",
-        )
         Path(output_file_path).write_text(p.model_dump_json(indent=2), encoding="utf-8")
         return p
 
