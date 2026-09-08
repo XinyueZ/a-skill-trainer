@@ -102,6 +102,8 @@ async def main(args):
         stream_mode=args.stream_mode,
     )
 
+    return session_id
+
 
 if __name__ == "__main__":
     # read cli args
@@ -156,4 +158,6 @@ if __name__ == "__main__":
     # python inference_agent.py --task_id 1234455 --task_name development-task --query "Current weather in Hamburg Germany please" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skills_dir ../workspace/skills --output_dir ../output --stream_mode
     import asyncio
 
-    asyncio.run(main(args))
+    session_id = asyncio.run(main(args))
+
+    print(session_id)
