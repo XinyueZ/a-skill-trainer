@@ -94,7 +94,7 @@ The path to the program file is: {program_file_path}
             system_prompt=system_prompt,
         )
         logger.info(
-            f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}"
+            f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}\n\n"
         )
 
         messages = [{"role": "user", "content": query}]
