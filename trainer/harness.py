@@ -240,6 +240,7 @@ class Harness(BaseModel):
         wiki_abs_dir_path = os.path.abspath(wiki_dir)
         skill_impact_md_file_path = os.path.join(wiki_abs_dir_path, "skill-impact.md")
         headline = "# Skill Evolution Impact Tracker"
+        feedback = feedback or "N/A"
         reco = f"""## Iteration {iteration}: {self._action} {self._skill_name} -> {self._outcome}
 
 - **Proposal Rationale**: {self._proposal_relation}
@@ -251,10 +252,10 @@ class Harness(BaseModel):
 """
         if os.path.getsize(skill_impact_md_file_path) == 0:
             with open(skill_impact_md_file_path, "a", encoding="utf-8") as f:
-                f.write(headline + "\n\n" + reco + "\n\n")
+                f.write(headline + "\n\n" + reco + "\n\n---\n\n")
         else:
             with open(skill_impact_md_file_path, "a", encoding="utf-8") as f:
-                f.write(reco + "\n\n")
+                f.write(reco + "\n\n---\n\n")
 
 
 async def main(args):
@@ -271,7 +272,7 @@ async def main(args):
     harness.accept_or_reject(workspace_dir_abs_path, skills_dir, args.reject)
     harness.update(
         wiki_dir,
-        feedback="I think there still needs some scripts to support",
+        feedback=args.feedback,
         iteration=args.iteration,
     )
 
@@ -301,10 +302,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Set, if reject a proposal at commandline mode",
     )
+    parser.add_argument(
+        "--feedback",
+        type=str,
+        required=False,
+        help="A feedback on the applied proposal",
+    )
     args = parser.parse_args()
 
-    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/4950c956-83f4-4c8b-954a-7d624738aee4/1234455/proposal.json  --reject --iteration 1
-    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/4950c956-83f4-4c8b-954a-7d624738aee4/1234455/proposal.json  --iteration 2
+    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/5e6b67b3-7c7e-4c48-aac8-06cdb0c8a2ba/1/proposal.json  --reject --iteration 0 --feedback="It is better to use some scripts to support"
+    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/48f92222-b2b0-4ad1-9e87-0709a48e1609/1/proposal.json  --iteration 1 --feedback="Make the scripts more robust"
+    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/63f73e44-30ad-4f8f-8d78-d944c3c77426/1/proposal.json  --iteration 2 --feedback="Add reuqirments (libs strong versions) that the scripts can work with"
+    # python trainer/harness.py --workspace_dir ./workspace --proposal_path ./output/63f73e44-30ad-4f8f-8d78-d944c3c77426/1/proposal.json  --iteration 3
     import asyncio
 
     asyncio.run(main(args))
