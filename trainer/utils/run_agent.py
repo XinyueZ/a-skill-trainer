@@ -4,7 +4,7 @@ from utils.stream_format import format_messages
 _INVOKE_CONIFG = {"recursion_limit": 10000}
 
 
-async def run_agent(agent, input_messages, stream_mode):
+async def run_deepagents(agent, input_messages, stream_mode):
     if stream_mode:
         response = None
         seen_msg_ids = set()

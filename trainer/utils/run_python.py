@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import docker
-from langchain.tools import tool
 
 
 def create_run_python(session_id: str, output_path: str = "./sandbox_output") -> tuple:
@@ -27,7 +26,6 @@ def create_run_python(session_id: str, output_path: str = "./sandbox_output") ->
     output_dir_host.mkdir(parents=True, exist_ok=True)
     program_file_path = str(output_dir_host / "main.py")
 
-    @tool
     def run_python(
         program_file_path: str, extra_env_vars: Optional[Dict[str, str]] = None
     ) -> str:

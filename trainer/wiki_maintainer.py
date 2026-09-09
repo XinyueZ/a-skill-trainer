@@ -11,7 +11,7 @@ from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
-from utils.run_agent import run_agent
+from utils.run_agent import run_deepagents
 from pathlib import Path
 
 load_dotenv()
@@ -213,7 +213,7 @@ class WikiMaintainer(BaseModel):
         )
 
         messages = [{"role": "user", "content": "maintain the wiki please"}]
-        await run_agent(self._agent, messages, stream_mode)
+        await run_deepagents(self._agent, messages, stream_mode)
         logger.success("WikiMaintainer done")
 
 

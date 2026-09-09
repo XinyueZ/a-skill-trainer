@@ -14,7 +14,7 @@ from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
-from utils.run_agent import run_agent
+from utils.run_agent import run_deepagents
 from langchain.tools import tool
 
 load_dotenv()
@@ -482,7 +482,7 @@ class SkillProposer(BaseModel):
 {traces_str}""",
             }
         ]
-        await run_agent(self._agent, messages, stream_mode)
+        await run_deepagents(self._agent, messages, stream_mode)
         logger.success("SkillProposer done")
 
 

@@ -8,7 +8,7 @@ from langchain.chat_models import init_chat_model
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from utils.run_agent import run_agent
+from utils.run_agent import run_deepagents
 from utils.run_python import create_run_python
 from utils.session_creator import create_session_id
 
@@ -98,7 +98,7 @@ The path to the program file is: {program_file_path}
         )
 
         messages = [{"role": "user", "content": query}]
-        response = await run_agent(self._agent, messages, stream_mode)
+        response = await run_deepagents(self._agent, messages, stream_mode)
 
         list_messages = response["messages"]
         traces_path = self._raw_layer.append_traces(
