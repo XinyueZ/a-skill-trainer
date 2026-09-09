@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run: ./flow-inference-proposal-harness.sh --task_id 1 --task_name "walk-through-inference-proposal-harness" --query "Current realtime weather in Hamburg Germany please"
+# run: ./flow-inference-proposal-harness.sh --task_id 1 --task_name "walk-through-inference-proposal-harness" --query "Current realtime weather in Hamburg Germany please. Put your findings in ./sandbox_output/findings.json. Warning: it must be a **SIMPLE** json structure."
 echo "🏃‍♂️  Walk through 5 rounds of flow-inference-proposal + harness"
 
 TASK_ID=1
