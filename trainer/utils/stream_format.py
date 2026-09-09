@@ -108,7 +108,7 @@ def format_message(messages):
     return format_messages(messages)
 
 
-def show_prompt(prompt_text: str, title: str = "Prompt", border_style: str = "blue"):
+def show_message(prompt_text: str, title: str = "Prompt", border_style: str = "blue"):
     """
     Display a prompt with rich formatting and XML tag highlighting.
 
