@@ -15,6 +15,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
 from utils.run_agent import run_agent
+from langchain.tools import tool
 
 load_dotenv()
 _SYSTEM_PROMPT = """
@@ -173,6 +174,7 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
         "proposal.json",
     )
 
+    @tool
     def finish(
         proposal_dict: dict,
     ) -> CreateSkillProposal | PatchSkillProposal | NoActionProposal:

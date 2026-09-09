@@ -241,9 +241,10 @@ class Harness(BaseModel):
         skill_impact_md_file_path = os.path.join(wiki_abs_dir_path, "skill-impact.md")
         headline = "# Skill Evolution Impact Tracker"
         feedback = feedback or "N/A"
+        proposal_relation = self._proposal_relation or "N/A"
         reco = f"""## Iteration {iteration}: {self._action} {self._skill_name} -> {self._outcome}
 
-- **Proposal Rationale**: {self._proposal_relation}
+- **Proposal Rationale**: {proposal_relation}
 - **Feedback**: {feedback}
 - **Git Diff**:
 ```diff

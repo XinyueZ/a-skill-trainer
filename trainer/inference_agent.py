@@ -2,13 +2,14 @@ import os
 from pathlib import Path
 
 from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.run_agent import run_agent
+from utils.run_python import create_run_python
 from utils.session_creator import create_session_id
 
 load_dotenv()
@@ -59,14 +60,37 @@ class InferenceAgent(BaseModel):
         assert output_dir, "output_dir must be specified"
         output_abs_path = Path(output_dir)
 
-        skills = kwargs.get("skills")
-        tools = kwargs.get("tools")
+        skills_dir_list = kwargs.get("skills_dir_list")
+        if len(skills_dir_list) == 0:
+            skills_abs_dir_path_list = None
+        else:
+            skills_abs_dir_path_list = [
+                os.path.abspath(skill_dir) for skill_dir in skills_dir_list
+            ]
+
+        sandbox_output = "./sandbox_output"
+        run_python_tool, program_file_path = create_run_python(
+            session_id, sandbox_output
+        )
+        tools = [run_python_tool] + kwargs.get("tools", list())
+        # tools = kwargs.get("tools")
+        system_prompt = f"""{system_prompt}
+---
+Additionally, we have pre-prepared a Python program file. 
+If you wish to write code to accomplish specific tasks, 
+you can duplicate this program file and utilize the `run_python` tool to execute it. 
+The path to the program file is: {program_file_path}
+---
+"""
+
         stream_mode = kwargs.get("stream_mode") == True
 
+        backend = FilesystemBackend(root_dir=sandbox_output, virtual_mode=False)
         self._agent = create_deep_agent(
             model=self._model,
-            skills=skills,
+            skills=skills_abs_dir_path_list,
             tools=tools,
+            backend=backend,
             system_prompt=system_prompt,
         )
         logger.info(
@@ -88,8 +112,8 @@ async def main(args):
     task = Task(id=args.task_id, name=args.task_name)
     session_id = create_session_id()
 
-    skills_dir_str = args.skills_dir
-    skills_dir_list = skills_dir_str.split() if skills_dir_str else None
+    skills_dir_str = args.skills_dir or ""
+    skills_dir_list = skills_dir_str.split(";")
 
     inference_agent = InferenceAgent()
     await inference_agent(
@@ -98,7 +122,7 @@ async def main(args):
         task=task,
         output_dir=args.output_dir,
         system_prompt=args.system_prompt,
-        skills=skills_dir_list,
+        skills_dir_list=skills_dir_list,
         stream_mode=args.stream_mode,
     )
 

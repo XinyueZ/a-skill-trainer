@@ -27,5 +27,6 @@ __pycache__/
 papers/
 output/
 workspace/
+sandbox_output/
 
 .env
