@@ -49,9 +49,8 @@ echo "✅ Task Name: $TASK_NAME"
 echo "✅ Query: $QUERY"
 
 session_id=$(python trainer/inference_agent.py --task_id $TASK_ID --task_name $TASK_NAME --query "$QUERY" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skills_dir ./workspace/skills --output_dir ./output --stream_mode | tail -n 1)
+echo "$session_id" > ./output/latest_session.txt
 
 python trainer/wiki_maintainer.py --traces_dir ./output/$session_id/$TASK_ID --wiki_dir ./workspace/wiki --stream_mode
 
 python trainer/skill_proposer.py --session_id $session_id --task_id $TASK_ID --traces_dir ./output/$session_id/$TASK_ID --workspace_dir ./workspace --output_dir ./output --stream_mode
-
-echo $session_id
