@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run: ./flow-antigravity-proposal-harness.sh --task_id 1 --task_name "walk-through-antigravity-proposal-harness" --query "Current realtime weather in Hamburg Germany please. Warning: it must be a **SIMPLE** json structure (location, condition, temperature_celsius, apparent_temperature_celsius, humidity_percent, wind_speed_kmh, precipitation_mm, timestamp(germany format dd.mm.yyyy hh:mm)) and saved in sandbox_output/findings.json"
+# run: ./flow-antigravity-proposal-harness.sh --task_id 1 --task_name "walk-through-antigravity-proposal-harness" --query "Current realtime weather in Hamburg Germany please. Warning: it must be a **SIMPLE** json structure (location, condition, temperature_celsius, apparent_temperature_celsius, humidity_percent, wind_speed_kmh, precipitation_mm, timestamp(germany format dd.mm.yyyy hh:mm)) and saved in sandbox_output/<session-id>/findings.json"
 echo "🏃‍♂️  Walk through 5 rounds of flow-antigravity-proposal + harness"
 
 TASK_ID=1

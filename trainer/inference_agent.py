@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from utils.run_agent import run_deepagents
 from utils.run_python import create_run_python
 from utils.session_creator import create_session_id
+from utils.get_current_datetime import get_current_local_datetime
 
 load_dotenv()
 
@@ -78,6 +79,10 @@ class InferenceAgent(BaseModel):
 Additionally, if you wish to write code to accomplish specific tasks, 
 you can duplicate this program file and 
 utilize the `run_python` tool to execute the code you write.
+---
+Current session ID: {session_id}
+---
+Current datetime {get_current_local_datetime()}
 """
 
         stream_mode = kwargs.get("stream_mode") == True
