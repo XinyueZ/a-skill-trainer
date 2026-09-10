@@ -383,10 +383,10 @@ class SkillProposer(BaseModel):
                 str(Path(root_dir).resolve())
             ):
                 logger.warning(
-                    f"Block forbidden action on non-skill directory: tool={tool_name}, path='{raw_path}'"
+                    f"Block forbidden action on non-skill directory: tool={tool_name}, path='{raw_path}', **ONLY ALLOWED** in '{root_dir}'"
                 )
                 return ToolMessage(
-                    content="Access to the non-skill directory is strictly forbidden.",
+                    content=f"Access to the non-skill directory is strictly forbidden. **ONLY ALLOWED** in '{root_dir}'",
                     name=tool_name,
                     tool_call_id=request.tool_call.get("id", "avoid"),
                 )
