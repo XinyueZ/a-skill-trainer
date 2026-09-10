@@ -68,10 +68,9 @@ class InferenceAgent(BaseModel):
                 os.path.abspath(skill_dir) for skill_dir in skills_dir_list
             ]
 
-        sandbox_output = "./sandbox_output"
-        run_python_tool, program_file_path = create_run_python(
-            session_id, sandbox_output
-        )
+        sandbox_output = os.path.abspath("./sandbox_output")
+        sandbox_output = Path(sandbox_output).resolve() / str(session_id)
+        run_python_tool, program_file_path = create_run_python(sandbox_output)
         tools = [run_python_tool] + kwargs.get("tools", list())
         # tools = kwargs.get("tools")
         system_prompt = f"""{system_prompt}

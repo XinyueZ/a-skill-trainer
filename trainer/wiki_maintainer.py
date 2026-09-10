@@ -138,54 +138,70 @@ class WikiMaintainer(BaseModel):
         )
         self._raw_layer = RawLayer()
 
-    def _block_forbidden_files(self, request, handler):
-        tool_name = request.tool_call.get("name", "")
-        args = request.tool_call.get("args", {})
-        raw_path = args.get("file_path") or args.get("path") or ""
-        pattern = args.get("pattern") or ""
-        file_name = os.path.basename(raw_path.rstrip("/\\"))
-        path_parts = Path(raw_path).parts
+    def _create_block_forbidden_files(self, root_dir):
+        def _block_forbidden_files(request, handler):
+            tool_name = request.tool_call.get("name", "")
+            args = request.tool_call.get("args", {})
 
-        is_git_access = (
-            ".git" in path_parts
-            or raw_path.strip("/\\") == ".git"
-            or ".git" in pattern.split("/")
-            or pattern.startswith(".git")
-        )
-        if is_git_access:
-            logger.warning(
-                f"Block forbidden action on .git directory: tool={tool_name}, path='{raw_path}', pattern='{pattern}'"
-            )
-            return ToolMessage(
-                content="Access to the '.git' directory and its contents is strictly forbidden.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+            raw_path = args.get("file_path") or args.get("path") or ""
+            if not str(Path(raw_path).resolve()).startswith(
+                str(Path(root_dir).resolve())
+            ):
+                logger.warning(
+                    f"Block forbidden action on non-wiki directory: tool={tool_name}, path='{raw_path}'"
+                )
+                return ToolMessage(
+                    content="Access to the non-wiki directory is strictly forbidden.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
 
-        if (
-            tool_name in ("write_file", "edit_file", "delete")
-            and file_name == "skill-impact.md"
-        ):
-            logger.warning(
-                f"Block forbidden file {tool_name} on skill-impact.md at WikiMaintainer"
-            )
-            return ToolMessage(
-                content="The 'skill-impact.md' is a protected system log and must not be written, modified, or deleted.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+            pattern = args.get("pattern") or ""
+            file_name = os.path.basename(raw_path.rstrip("/\\"))
+            path_parts = Path(raw_path).parts
 
-        if file_name.lower() == "readme.md":
-            logger.warning(
-                f"Block forbidden file {tool_name} on README.md at WikiMaintainer"
+            is_git_access = (
+                ".git" in path_parts
+                or raw_path.strip("/\\") == ".git"
+                or ".git" in pattern.split("/")
+                or pattern.startswith(".git")
             )
-            return ToolMessage(
-                content="The 'README.md' file is protected and must NOT be read, written, or modified.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+            if is_git_access:
+                logger.warning(
+                    f"Block forbidden action on .git directory: tool={tool_name}, path='{raw_path}', pattern='{pattern}'"
+                )
+                return ToolMessage(
+                    content="Access to the '.git' directory and its contents is strictly forbidden.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
 
-        return handler(request)
+            if (
+                tool_name in ("write_file", "edit_file", "delete")
+                and file_name == "skill-impact.md"
+            ):
+                logger.warning(
+                    f"Block forbidden file {tool_name} on skill-impact.md at WikiMaintainer"
+                )
+                return ToolMessage(
+                    content="The 'skill-impact.md' is a protected system log and must not be written, modified, or deleted.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
+
+            if file_name.lower() == "readme.md":
+                logger.warning(
+                    f"Block forbidden file {tool_name} on README.md at WikiMaintainer"
+                )
+                return ToolMessage(
+                    content="The 'README.md' file is protected and must NOT be read, written, or modified.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
+
+            return handler(request)
+
+        return _block_forbidden_files
 
     async def __call__(self, **kwargs):
         traces_dir = kwargs["traces_dir"]
@@ -201,15 +217,17 @@ class WikiMaintainer(BaseModel):
         traces_str = str(traces_dict)
         system_prompt = _SYSTEM_PROMPT.format(wiki_dir=wiki_abs_path, traces=traces_str)
         logger.debug(f"system prompt:\n\n{system_prompt[:250]}...\n\n")
-        backend = FilesystemBackend(root_dir=wiki_dir, virtual_mode=False)
+        backend = FilesystemBackend(root_dir=wiki_abs_path, virtual_mode=False)
         self._agent = create_deep_agent(
             model=self._model,
             backend=backend,
-            middleware=[AwrapToolCall(self._block_forbidden_files)],
+            middleware=[
+                AwrapToolCall(self._create_block_forbidden_files(wiki_abs_path))
+            ],
             system_prompt=system_prompt,
         )
         logger.info(
-            f"Run WikiMaintainer, at {wiki_dir}, for traces:\n\n{traces_str[:100]}...\n\n"
+            f"Run WikiMaintainer, at {wiki_abs_path}, for traces:\n\n{traces_str[:100]}...\n\n"
         )
 
         messages = [{"role": "user", "content": "maintain the wiki please"}]

@@ -363,55 +363,74 @@ class SkillProposer(BaseModel):
         self._wiki_layer = WikiLayer()
         self._raw_layer = RawLayer()
 
-    def _block_forbidden_files(self, request, handler):
-        tool_name = request.tool_call.get("name", "")
-        if tool_name in ("write_file", "edit_file", "delete"):
-            return ToolMessage(
-                content="Write, Edit, Delete actions are forbidden.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+    def _create_block_forbidden_files(self, root_dir):
+        def _block_forbidden_files(request, handler):
+            tool_name = request.tool_call.get("name", "")
+            if tool_name in ("finish"):
+                return handler(request)
 
-        args = request.tool_call.get("args", {})
-        raw_path = args.get("file_path") or args.get("path") or ""
-        pattern = args.get("pattern") or ""
-        file_name = os.path.basename(raw_path.rstrip("/\\"))
-        path_parts = Path(raw_path).parts
+            if tool_name in ("write_file", "edit_file", "delete"):
+                return ToolMessage(
+                    content="Write, Edit, Delete actions are forbidden.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
 
-        is_git_access = (
-            ".git" in path_parts
-            or raw_path.strip("/\\") == ".git"
-            or ".git" in pattern.split("/")
-            or pattern.startswith(".git")
-        )
-        if is_git_access:
-            logger.warning(
-                f"Block forbidden action on .git directory: tool={tool_name}, path='{raw_path}', pattern='{pattern}'"
-            )
-            return ToolMessage(
-                content="Access to the '.git' directory and its contents is strictly forbidden.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+            args = request.tool_call.get("args", {})
 
-        _full_blocked_files = [
-            ".gitignore",
-            ".gitattributes",
-            ".gitmodules",
-            ".DS_Store",
-            "readme.md",
-        ]
-        if file_name.lower() in _full_blocked_files:
-            logger.warning(
-                f"Block forbidden file {tool_name} of {_full_blocked_files} at WikiMaintainer"
-            )
-            return ToolMessage(
-                content="The {file_name} is protected and must NOT be read, written, or modified.",
-                name=tool_name,
-                tool_call_id=request.tool_call.get("id", "avoid"),
-            )
+            raw_path = args.get("file_path") or args.get("path") or ""
+            if not str(Path(raw_path).resolve()).startswith(
+                str(Path(root_dir).resolve())
+            ):
+                logger.warning(
+                    f"Block forbidden action on non-skill directory: tool={tool_name}, path='{raw_path}'"
+                )
+                return ToolMessage(
+                    content="Access to the non-skill directory is strictly forbidden.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
 
-        return handler(request)
+            pattern = args.get("pattern") or ""
+            file_name = os.path.basename(raw_path.rstrip("/\\"))
+            path_parts = Path(raw_path).parts
+
+            is_git_access = (
+                ".git" in path_parts
+                or raw_path.strip("/\\") == ".git"
+                or ".git" in pattern.split("/")
+                or pattern.startswith(".git")
+            )
+            if is_git_access:
+                logger.warning(
+                    f"Block forbidden action on .git directory: tool={tool_name}, path='{raw_path}', pattern='{pattern}'"
+                )
+                return ToolMessage(
+                    content="Access to the '.git' directory and its contents is strictly forbidden.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
+
+            _full_blocked_files = [
+                ".gitignore",
+                ".gitattributes",
+                ".gitmodules",
+                ".DS_Store",
+                "readme.md",
+            ]
+            if file_name.lower() in _full_blocked_files:
+                logger.warning(
+                    f"Block forbidden file {tool_name} of {_full_blocked_files} at WikiMaintainer"
+                )
+                return ToolMessage(
+                    content="The {file_name} is protected and must NOT be read, written, or modified.",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
+
+            return handler(request)
+
+        return _block_forbidden_files
 
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
@@ -466,14 +485,14 @@ class SkillProposer(BaseModel):
             model=self._model,
             backend=backend,
             middleware=[
-                AwrapToolCall(self._block_forbidden_files),
+                AwrapToolCall(self._create_block_forbidden_files(workspace_abs_path)),
                 read_only_middleware,
             ],
             system_prompt=system_prompt,
-            tools=tools,
+            tools=tools,  # Notice: block_forbidden_files may avoid watching tool of tools, ie: finish() created by _create_finish_tool.
         )
         logger.info(
-            f"Run SkillProposer for traces:\n\n{traces_str[:100]}...\n\nTask:\n\n{task_desc[:100]}...\n\n"
+            f"Run SkillProposer, at {workspace_abs_path}, for traces:\n\n{traces_str[:100]}...\n\nTask:\n\n{task_desc[:100]}...\n\n"
         )
         messages = [
             {

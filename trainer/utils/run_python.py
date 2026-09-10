@@ -9,12 +9,11 @@ from typing import Dict, Optional
 import docker
 
 
-def create_run_python(session_id: str, output_path: str = "./sandbox_output") -> tuple:
+def create_run_python(output_path: Path) -> tuple:
     """
     Create the tool that run python script.
 
     Args:
-        session_id: The task session ID, used to create a unique container name.
         output_path: The path to store the output of the script.
 
     Return:
@@ -22,9 +21,11 @@ def create_run_python(session_id: str, output_path: str = "./sandbox_output") ->
 
 
     """
-    output_dir_host = Path(output_path).resolve() / str(session_id)
-    output_dir_host.mkdir(parents=True, exist_ok=True)
-    program_file_path = str(output_dir_host / "main.py")
+
+    output_path.mkdir(parents=True, exist_ok=True)
+    program_file_path = os.path.join(str(output_path), "main.py")
+    with open(program_file_path, "w", encoding="utf-8") as f:
+        f.write("")
 
     def run_python(
         program_file_path: str, extra_env_vars: Optional[Dict[str, str]] = None

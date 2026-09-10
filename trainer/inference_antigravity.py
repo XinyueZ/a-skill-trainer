@@ -41,6 +41,7 @@ class InferenceAgent(BaseModel):
         skills_paths: list[str],
         tools: list,
         stream_mode: bool,
+        app_data_dir: str,
     ) -> Conversation:
         vertex = os.environ["GOOGLE_GENAI_USE_VERTEXAI"].lower() == "true"
         gemini_options = GeminiModelOptions(thinking_level=os.environ["THINKING_LEVEL"])
@@ -76,6 +77,7 @@ class InferenceAgent(BaseModel):
                     types.BuiltinTools.FIND_FILE,
                 ]
             ),
+            app_data_dir=app_data_dir,
         )
 
         return await run_antigravity(config, message, stream_mode)
@@ -105,10 +107,9 @@ class InferenceAgent(BaseModel):
                 os.path.abspath(skill_dir) for skill_dir in skills_dir_list
             ]
 
-        sandbox_output = "./sandbox_output"
-        run_python_tool, program_file_path = create_run_python(
-            session_id, sandbox_output
-        )
+        sandbox_output = os.path.abspath("./sandbox_output")
+        sandbox_output = Path(sandbox_output).resolve() / str(session_id)
+        run_python_tool, program_file_path = create_run_python(sandbox_output)
         tools = [run_python_tool] + kwargs.get("tools", list())
         # tools = kwargs.get("tools")
         system_prompt = f"""{system_prompt}
@@ -131,17 +132,8 @@ The path to the program file is: {program_file_path}
             skills_abs_dir_path_list,
             tools,
             stream_mode,
+            str(sandbox_output),
         )
-
-        from rich.pretty import pprint as pp
-
-        # res_list = await response.resolve()
-        # for res in res_list:
-        #     pp(res)
-        # async for chunk in response.chunks:
-        #     pp(chunk)
-        # for step in conversation.history:
-        #     pp(step)
 
         list_messages = conversation.history  # response["messages"]
         traces_path = self._raw_layer.append_traces(
