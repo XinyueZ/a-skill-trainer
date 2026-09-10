@@ -417,13 +417,14 @@ class SkillProposer(BaseModel):
                 ".gitmodules",
                 ".DS_Store",
                 "readme.md",
+                "README.md",
             ]
             if file_name.lower() in _full_blocked_files:
                 logger.warning(
-                    f"Block forbidden file {tool_name} of {_full_blocked_files} at WikiMaintainer"
+                    f"Block forbidden file {tool_name} of {_full_blocked_files}"
                 )
                 return ToolMessage(
-                    content="The {file_name} is protected and must NOT be read, written, or modified.",
+                    content=f"The {file_name} is protected and must NOT be read, written, or modified. Full list of forbidden files: {_full_blocked_files}",
                     name=tool_name,
                     tool_call_id=request.tool_call.get("id", "avoid"),
                 )

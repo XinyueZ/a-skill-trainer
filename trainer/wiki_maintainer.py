@@ -180,21 +180,27 @@ class WikiMaintainer(BaseModel):
                 tool_name in ("write_file", "edit_file", "delete")
                 and file_name == "skill-impact.md"
             ):
-                logger.warning(
-                    f"Block forbidden file {tool_name} on skill-impact.md at WikiMaintainer"
-                )
+                logger.warning(f"Block forbidden file {tool_name} on skill-impact.md")
                 return ToolMessage(
                     content="The 'skill-impact.md' is a protected system log and must not be written, modified, or deleted.",
                     name=tool_name,
                     tool_call_id=request.tool_call.get("id", "avoid"),
                 )
 
-            if file_name.lower() == "readme.md":
+            _full_blocked_files = [
+                ".gitignore",
+                ".gitattributes",
+                ".gitmodules",
+                ".DS_Store",
+                "readme.md",
+                "README.md",
+            ]
+            if file_name.lower() in _full_blocked_files:
                 logger.warning(
-                    f"Block forbidden file {tool_name} on README.md at WikiMaintainer"
+                    f"Block forbidden file {tool_name} of {_full_blocked_files}"
                 )
                 return ToolMessage(
-                    content="The 'README.md' file is protected and must NOT be read, written, or modified.",
+                    content=f"The {file_name} is protected and must NOT be read, written, or modified. Full list of forbidden files: {_full_blocked_files}",
                     name=tool_name,
                     tool_call_id=request.tool_call.get("id", "avoid"),
                 )

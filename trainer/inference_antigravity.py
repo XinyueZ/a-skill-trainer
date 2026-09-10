@@ -109,17 +109,14 @@ class InferenceAgent(BaseModel):
 
         sandbox_output = os.path.abspath("./sandbox_output")
         sandbox_output = Path(sandbox_output).resolve() / str(session_id)
-        run_python_tool, program_file_path = create_run_python(sandbox_output)
+        run_python_tool = create_run_python(sandbox_output)
         tools = [run_python_tool] + kwargs.get("tools", list())
         # tools = kwargs.get("tools")
         system_prompt = f"""{system_prompt}
 ---
-Additionally, we have pre-prepared a Python program file. 
-If you wish to write code to accomplish specific tasks, 
-you can duplicate this program file and utilize the `run_python` tool to execute it. 
-The path to the program file is: {program_file_path}
-**IMPORTANT**: OTHER PROGRAM FILES MUST BE IGNORED.
----
+Additionally, if you wish to write code to accomplish specific tasks, 
+you can duplicate this program file and 
+utilize the `run_python` tool to execute the code you write.
 """
         stream_mode = kwargs.get("stream_mode") == True
         logger.info(
