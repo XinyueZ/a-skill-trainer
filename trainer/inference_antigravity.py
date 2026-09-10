@@ -38,8 +38,8 @@ class InferenceAgent(BaseModel):
         self,
         system_prompt: str,
         message: str,
-        skills_paths: list[str],
-        tools: list,
+        skills_paths: list[str] | None,
+        tools: list | None,
         stream_mode: bool,
         app_data_dir: str,
     ) -> Conversation:
@@ -126,7 +126,7 @@ The path to the program file is: {program_file_path}
             f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}\n\n"
         )
 
-        conversation: Conversation = await self._run_antigravity(
+        conversation = await self._run_antigravity(
             system_prompt,
             query,
             skills_abs_dir_path_list,
