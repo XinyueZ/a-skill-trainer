@@ -1,14 +1,19 @@
 import os
 from pathlib import Path
 
-from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
+from google.antigravity import CapabilitiesConfig, LocalAgentConfig, types
+from google.antigravity.types import (
+    GeminiAPIEndpoint,
+    GeminiModelOptions,
+    ModelTarget,
+    VertexEndpoint,
+)
+from google.antigravity.conversation.conversation import Conversation
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from utils.run_agent import run_deepagents
+from utils.run_agent import run_antigravity
 from utils.run_python import create_run_python
 from utils.session_creator import create_session_id
 
@@ -27,21 +32,53 @@ class InferenceAgent(BaseModel):
     _raw_layer: RawLayer
 
     def __init__(self):
-        self._model = init_chat_model(
-            model=os.environ["INFERENCE_MODEL"],
-            model_provider="google_genai",
-            temperature=float(os.environ["TEMPERATURE"]),
-            vertexai=os.environ["GOOGLE_GENAI_USE_VERTEXAI"].lower() == "true",
-            enterprise=os.environ["GOOGLE_GENAI_USE_ENTERPRISE"].lower() == "true",
+        self._raw_layer = RawLayer()
+
+    async def _run_antigravity(
+        self,
+        system_prompt: str,
+        message: str,
+        skills_paths: list[str],
+        tools: list,
+        stream_mode: bool,
+    ) -> Conversation:
+        vertex = os.environ["GOOGLE_GENAI_USE_VERTEXAI"].lower() == "true"
+        gemini_options = GeminiModelOptions(thinking_level=os.environ["THINKING_LEVEL"])
+        config = LocalAgentConfig(
+            vertex=vertex,
             project=os.environ["GOOGLE_CLOUD_PROJECT"],
             location=os.environ["INFERENCE_MODEL_LOCATION"],
-            thinking_config={
-                "thinking_level": os.environ["THINKING_LEVEL"],
-                "include_thoughts": os.environ["INCLUDE_THOUGHTS"].lower() == "true",
-            },
+            # api_key=os.environ["GEMINI_API_KEY"],
+            model=ModelTarget(
+                name=os.environ["INFERENCE_MODEL"],
+                endpoint=(
+                    GeminiAPIEndpoint(
+                        options=gemini_options, api_key=os.environ["GEMINI_API_KEY"]
+                    )
+                    if not vertex
+                    else VertexEndpoint(
+                        project=os.environ["GOOGLE_CLOUD_PROJECT"],
+                        location=os.environ["INFERENCE_MODEL_LOCATION"],
+                        options=gemini_options,
+                    )
+                ),
+            ),
+            system_instructions=system_prompt,
+            skills_paths=skills_paths,
+            tools=tools,
+            capabilities=CapabilitiesConfig(
+                enabled_tools=[
+                    types.BuiltinTools.CREATE_FILE,
+                    types.BuiltinTools.VIEW_FILE,
+                    types.BuiltinTools.EDIT_FILE,
+                    types.BuiltinTools.LIST_DIR,
+                    types.BuiltinTools.SEARCH_DIR,
+                    types.BuiltinTools.FIND_FILE,
+                ]
+            ),
         )
 
-        self._raw_layer = RawLayer()
+        return await run_antigravity(config, message, stream_mode)
 
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
@@ -83,25 +120,30 @@ The path to the program file is: {program_file_path}
 **IMPORTANT**: OTHER PROGRAM FILES MUST BE IGNORED.
 ---
 """
-
         stream_mode = kwargs.get("stream_mode") == True
-
-        backend = FilesystemBackend(root_dir=sandbox_output, virtual_mode=False)
-        self._agent = create_deep_agent(
-            model=self._model,
-            skills=skills_abs_dir_path_list,
-            tools=tools,
-            backend=backend,
-            system_prompt=system_prompt,
-        )
         logger.info(
             f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}\n\n"
         )
 
-        messages = [{"role": "user", "content": query}]
-        response = await run_deepagents(self._agent, messages, stream_mode)
+        conversation: Conversation = await self._run_antigravity(
+            system_prompt,
+            query,
+            skills_abs_dir_path_list,
+            tools,
+            stream_mode,
+        )
 
-        list_messages = response["messages"]
+        from rich.pretty import pprint as pp
+
+        # res_list = await response.resolve()
+        # for res in res_list:
+        #     pp(res)
+        # async for chunk in response.chunks:
+        #     pp(chunk)
+        # for step in conversation.history:
+        #     pp(step)
+
+        list_messages = conversation.history  # response["messages"]
         traces_path = self._raw_layer.append_traces(
             session_id, task.id, list_messages, output_abs_path
         )
@@ -180,7 +222,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # python trainer/inference_agent.py --task_id 1234455 --task_name development-task --query "Current weather in Hamburg Germany please" --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skills_dir ./workspace/skills --output_dir ./output --stream_mode
+    # python trainer/inference_antigravity.py --task_id 1234455 --task_name development-task --query "Current realtime weather in Hamburg Germany please. Put your findings in ./sandbox_output/findings.json. Warning: it must be a **SIMPLE** json structure." --system_prompt "Answer user question and finish task. Your answers must be based on true and reality, avoid answering that you do not know" --skills_dir ./workspace/skills --output_dir ./output --stream_mode
     import asyncio
 
     session_id = asyncio.run(main(args))
