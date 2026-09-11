@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import ToolMessage
 from layers.raw_layer import RawLayer
-from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
@@ -119,7 +118,6 @@ The description must be specific enough that an agent can judge relevance withou
 class WikiMaintainer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    _wiki_layer: WikiLayer
     _raw_layer: RawLayer
 
     def __init__(self):

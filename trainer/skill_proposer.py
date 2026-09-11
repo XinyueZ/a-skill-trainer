@@ -9,8 +9,6 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import ToolMessage
 from layers.raw_layer import RawLayer
-from layers.skills_layer import SkillsLayer
-from layers.wiki_layer import WikiLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from utils.awrap_tool_call import AwrapToolCall
@@ -341,8 +339,6 @@ def _create_finish_tool(output_dir: Path, session_id: str, task_id: str):
 class SkillProposer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    _skills_layer: SkillsLayer
-    _wiki_layer: WikiLayer
     _raw_layer: RawLayer
 
     def __init__(self):
@@ -359,8 +355,6 @@ class SkillProposer(BaseModel):
                 "include_thoughts": os.environ["INCLUDE_THOUGHTS"].lower() == "true",
             },
         )
-        self._skills_layer = SkillsLayer()
-        self._wiki_layer = WikiLayer()
         self._raw_layer = RawLayer()
 
     def _create_block_forbidden_files(self, root_dir):

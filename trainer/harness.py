@@ -5,8 +5,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from layers.raw_layer import RawLayer
-from layers.skills_layer import SkillsLayer
-from layers.wiki_layer import WikiLayer
+
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from skill_proposer import (
@@ -20,8 +19,6 @@ from skill_proposer import (
 class Harness(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    _skills_layer: SkillsLayer
-    _wiki_layer: WikiLayer
     _raw_layer: RawLayer
 
     _action: str
