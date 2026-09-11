@@ -117,7 +117,7 @@ class InferenceAgent(BaseModel):
 ---
 Additionally, if you wish to write code to accomplish specific tasks, 
 you can duplicate this program file and 
-utilize the `run_python` tool to execute the code you write.
+utilize the `run_python` tool to execute the code you write in a sandbox environment.
 ---
 Current session ID: {session_id}
 ---

@@ -5,13 +5,15 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from langchain.messages import ToolMessage
 from layers.raw_layer import RawLayer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from utils.awrap_tool_call import AwrapToolCall
+from utils.get_current_datetime import get_current_local_datetime
 from utils.run_agent import run_deepagents
 from utils.run_python import create_run_python
 from utils.session_creator import create_session_id
-from utils.get_current_datetime import get_current_local_datetime
 
 load_dotenv()
 
@@ -43,6 +45,31 @@ class InferenceAgent(BaseModel):
         )
 
         self._raw_layer = RawLayer()
+
+    def _create_block_forbidden_files(self, root_dir):
+        def _block_forbidden_files(request, handler):
+            tool_name = request.tool_call.get("name", "")
+            args = request.tool_call.get("args", {})
+
+            raw_path = args.get("file_path") or args.get("path") or ""
+            if (
+                not str(Path(raw_path).resolve()).startswith(
+                    str(Path(root_dir).resolve())
+                )
+                and tool_name != "run_python"
+            ):
+                logger.warning(
+                    f"Block forbidden action on non-wiki directory: tool={tool_name}, path='{raw_path}', **ONLY ALLOWED** in '{root_dir}'"
+                )
+                return ToolMessage(
+                    content=f"Access to the non-wiki directory is strictly forbidden. **ONLY ALLOWED** in '{root_dir}'",
+                    name=tool_name,
+                    tool_call_id=request.tool_call.get("id", "avoid"),
+                )
+
+            return handler(request)
+
+        return _block_forbidden_files
 
     async def __call__(self, **kwargs):
         session_id = kwargs["session_id"]
@@ -78,7 +105,7 @@ class InferenceAgent(BaseModel):
 ---
 Additionally, if you wish to write code to accomplish specific tasks, 
 you can duplicate this program file and 
-utilize the `run_python` tool to execute the code you write.
+utilize the `run_python` tool to execute the code you write in a sandbox environment.
 ---
 Current session ID: {session_id}
 ---
@@ -94,6 +121,9 @@ Current datetime {get_current_local_datetime()}
             tools=tools,
             backend=backend,
             system_prompt=system_prompt,
+            middleware=[
+                AwrapToolCall(self._create_block_forbidden_files(sandbox_output))
+            ],
         )
         logger.info(
             f"Start inferencing for task {task}, query: {query}, output_abs_path: {output_abs_path}\n\n"
