@@ -191,11 +191,15 @@ In addition to the default **LangChain DeepAgents**, this project features an ex
 ### 2. Installation Steps
 
 ```bash
-# 1. Clone the repository and enter directory
+# 1. Clone the main repository and enter directory
 git clone https://github.com/XinyueZ/a-skill-trainer.git
 cd a-skill-trainer
 
-# 2. Install Python dependencies
+# 2. Clone the workspace repository into 'workspace'
+# (The 'workspace' is an independent Git repository used by Harness to track skill diffs and manage rollbacks)
+git clone https://github.com/XinyueZ/a-skill-trainer-workspace.git workspace
+
+# 3. Install Python dependencies
 pip install -r requirements.txt
 ```
 
@@ -440,11 +444,15 @@ def train_skill_lifecycle(task_id, task_name, query):
 ### 2. 安装步骤
 
 ```bash
-# 1. 克隆代码仓库并进入项目目录
+# 1. 克隆主代码仓库并进入项目目录
 git clone https://github.com/XinyueZ/a-skill-trainer.git
 cd a-skill-trainer
 
-# 2. 安装 Python 依赖
+# 2. 克隆配套的 workspace 知识库与技能仓库至 workspace 目录
+# (注：workspace 是一个独立的 Git 仓库，专门用于供 Harness 提取技能 diff、执行版本提交与原子回滚)
+git clone https://github.com/XinyueZ/a-skill-trainer-workspace.git workspace
+
+# 3. 安装 Python 依赖
 pip install -r requirements.txt
 ```
 
