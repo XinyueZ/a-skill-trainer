@@ -193,7 +193,7 @@ In addition to the default **LangChain DeepAgents**, this project features an ex
 ```bash
 # 1. Clone the repository and enter directory
 git clone <your-repo-url>
-cd wikiskill
+cd a-skill-trainer
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
@@ -442,7 +442,7 @@ def train_skill_lifecycle(task_id, task_name, query):
 ```bash
 # 1. 克隆代码仓库并进入项目目录
 git clone <your-repo-url>
-cd wikiskill
+cd a-skill-trainer
 
 # 2. 安装 Python 依赖
 pip install -r requirements.txt
