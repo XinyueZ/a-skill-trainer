@@ -161,6 +161,63 @@ class Harness(BaseModel):
         cmd = f"git -C {workspace_abs_dir_path} diff HEAD -- skills"
         logger.debug(f"Seek diff via `{cmd}`")
         output = subprocess.check_output(cmd, shell=True, text=True)
+
+        # If git diff is empty because the skill is untracked (e.g. brand new skill files), compute diff against /dev/null
+        if not output.strip():
+            try:
+                untracked_res = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        workspace_abs_dir_path,
+                        "status",
+                        "--porcelain",
+                        "-uall",
+                        "skills",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                untracked = untracked_res.stdout
+                if untracked.strip():
+                    diff_chunks = []
+                    for line in untracked.splitlines():
+                        parts = line.strip().split(maxsplit=1)
+                        if len(parts) >= 2 and parts[0] == "??":
+                            rel_entry = parts[1]
+                            abs_entry = os.path.join(workspace_abs_dir_path, rel_entry)
+                            target_files = []
+                            if os.path.isfile(abs_entry):
+                                target_files.append(rel_entry)
+                            elif os.path.isdir(abs_entry):
+                                for root, _, fnames in os.walk(abs_entry):
+                                    for fn in fnames:
+                                        abs_f = os.path.join(root, fn)
+                                        target_files.append(os.path.relpath(abs_f, workspace_abs_dir_path))
+                            for rel_path in sorted(target_files):
+                                diff_res = subprocess.run(
+                                    [
+                                        "git",
+                                        "-C",
+                                        workspace_abs_dir_path,
+                                        "diff",
+                                        "--no-index",
+                                        "--src-prefix=a/",
+                                        "--dst-prefix=b/",
+                                        "/dev/null",
+                                        rel_path,
+                                    ],
+                                    capture_output=True,
+                                    text=True,
+                                )
+                                if diff_res.stdout.strip():
+                                    diff_chunks.append(diff_res.stdout.strip())
+                    if diff_chunks:
+                        output = "\n\n".join(diff_chunks)
+            except Exception as e:
+                logger.warning(f"Failed to compute untracked diff fallback: {e}")
+
         logger.success(f"Δ  Diff:\n\n{output[:500]}...\n\n")
 
         # part of Update information

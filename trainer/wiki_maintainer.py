@@ -1,8 +1,9 @@
 import os
+import tempfile
 from argparse import ArgumentParser
 
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import CompositeBackend, FilesystemBackend
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import ToolMessage
@@ -112,6 +113,10 @@ Each index entry MUST follow this format:
 - `[pattern-name](patterns/pattern-name.md): PROBLEM + ROOT CAUSE + FIX in one or two sentences.`
 
 The description must be specific enough that an agent can judge relevance without reading the full page. Include the problem, root cause, AND solution.
+
+## Avoid Overanalysis
+
+Do not fall into endless nitpicking and the pursuit of excessive perfection. Find a reasonable balance point to conclude tasks.
 """
 
 
@@ -221,7 +226,10 @@ class WikiMaintainer(BaseModel):
         traces_str = str(traces_dict)
         system_prompt = _SYSTEM_PROMPT.format(wiki_dir=wiki_abs_path, traces=traces_str)
         logger.debug(f"system prompt:\n\n{system_prompt[:250]}...\n\n")
-        backend = FilesystemBackend(root_dir=wiki_abs_path, virtual_mode=False)
+        fs_backend = FilesystemBackend(root_dir=wiki_abs_path, virtual_mode=False)
+        backend = CompositeBackend(
+            default=fs_backend, routes={}, artifacts_root=tempfile.gettempdir()
+        )
         self._agent = create_deep_agent(
             model=self._model,
             backend=backend,

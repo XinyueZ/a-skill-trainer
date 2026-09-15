@@ -1,8 +1,9 @@
 import os
+import tempfile
 from pathlib import Path
 
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import CompositeBackend, FilesystemBackend
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.messages import ToolMessage
@@ -114,7 +115,10 @@ Current datetime {get_current_local_datetime()}
 
         stream_mode = kwargs.get("stream_mode") == True
 
-        backend = FilesystemBackend(root_dir=sandbox_output, virtual_mode=False)
+        fs_backend = FilesystemBackend(root_dir=sandbox_output, virtual_mode=False)
+        backend = CompositeBackend(
+            default=fs_backend, routes={}, artifacts_root=tempfile.gettempdir()
+        )
         self._agent = create_deep_agent(
             model=self._model,
             skills=skills_abs_dir_path_list,

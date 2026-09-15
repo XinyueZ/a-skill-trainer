@@ -6,6 +6,7 @@ from google.antigravity.types import Step
 from langchain_core.load import dumps
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from itertools import groupby
 
 
 class TracesPath(BaseModel):
@@ -96,6 +97,7 @@ class TracesWriter(BaseModel):
                         list_messages,
                     )
                 )
+                predumpy_list = [next(g) for k, g in groupby(predumpy_list)]
             else:
                 invers_json = json.loads(json_str)
                 predumpy_list = list(

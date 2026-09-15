@@ -1,9 +1,10 @@
 import os
+import tempfile
 from argparse import ArgumentParser
 from pathlib import Path
 
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import CompositeBackend, FilesystemBackend
 from deepagents.middleware import FilesystemMiddleware
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
@@ -97,6 +98,10 @@ For patching an existing skill:
 3. Keep skills concise and actionable.
 4. You MUST read the task execution traces before proposing a skill change. Target your exploration based on the trace summary.
 5. Prefer patching existing skills over creating new ones when the existing skill is partially correct.
+
+## Avoid Overanalysis
+
+Do not fall into endless nitpicking and the pursuit of excessive perfection. Find a reasonable balance point to conclude tasks.
 """
 
 import re
@@ -459,7 +464,10 @@ class SkillProposer(BaseModel):
             workspace_dir=workspace_abs_path,
         )
         logger.debug(f"system prompt:\n\n{system_prompt[:250]}...\n\n")
-        backend = FilesystemBackend(root_dir=workspace_abs_path, virtual_mode=False)
+        fs_backend = FilesystemBackend(root_dir=workspace_abs_path, virtual_mode=False)
+        backend = CompositeBackend(
+            default=fs_backend, routes={}, artifacts_root=tempfile.gettempdir()
+        )
         read_only_middleware = FilesystemMiddleware(
             backend=backend,
             tools=[

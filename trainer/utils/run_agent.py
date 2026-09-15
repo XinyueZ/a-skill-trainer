@@ -1,11 +1,17 @@
-from rich.pretty import pprint as pp
-from utils.stream_format import format_messages, show_message
-from google.antigravity import Agent
-from google.antigravity.types import Text, Thought, ToolCall, ToolResult
-from google.antigravity.conversation.conversation import Conversation
+import os
 import sys
 
-_INVOKE_CONIFG = {"recursion_limit": 10000}
+from dotenv import load_dotenv
+from google.antigravity import Agent
+from google.antigravity.conversation.conversation import Conversation
+from google.antigravity.types import Text, Thought, ToolCall, ToolResult
+from rich.pretty import pprint as pp
+from utils.stream_format import format_messages, show_message
+
+load_dotenv()
+
+_limit = os.environ["LANGGRAPH_RECURSION_LIMIT"]
+_INVOKE_CONIFG = {"recursion_limit": int(_limit)}
 
 
 async def run_deepagents(agent, input_messages, stream_mode):
